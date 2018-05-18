@@ -152,6 +152,74 @@ void HypreSystem::setup_boomeramg_precond()
     HYPRE_BoomerAMGSetStrongThreshold(
         precond_, get_optional(node, "strong_threshold", 0.57));
 
+    if (node["non_galerkin_tol"]) {
+        double non_galerkin_tol = node["non_galerkin_tol"].as<double>();
+        HYPRE_BoomerAMGSetNonGalerkinTol(precond_, non_galerkin_tol);
+
+        if (node["non_galerkin_level_tols"]) {
+            auto ngnode = node["non_galerkin_level_tols"];
+            std::vector<int> levels = ngnode["levels"].as<std::vector<int>>();
+            std::vector<double> tol = ngnode["tolerances"].as<std::vector<double>>();
+
+            if (levels.size() != tol.size())
+                throw std::runtime_error(
+                    "Hypre Config:: Invalid non_galerkin_level_tols");
+
+            for (size_t i = 0; i < levels.size(); i++) {
+                HYPRE_BoomerAMGSetLevelNonGalerkinTol(precond_, tol[i], levels[i]);
+            }
+        }
+    }
+
+    if (node["variant"]) {
+        int int_value = node["variant"].as<int>();
+        HYPRE_BoomerAMGSetVariant(precond_, int_value);
+    }
+
+    if (node["keep_transpose"]) {
+        int int_value = node["keep_transpose"].as<int>();
+        HYPRE_BoomerAMGSetKeepTranspose(precond_, int_value);
+    }
+
+    if (node["interp_type"]) {
+        int int_value = node["interp_type"].as<int>();
+        HYPRE_BoomerAMGSetInterpType(precond_, int_value);
+    }
+
+    if (node["min_coarse_size"]) {
+        int int_value = node["min_coarse_size"].as<int>();
+        HYPRE_BoomerAMGSetMinCoarseSize(precond_, int_value);
+    }
+    if (node["max_coarse_size"]) {
+        int int_value = node["max_coarse_size"].as<int>();
+        HYPRE_BoomerAMGSetMaxCoarseSize(precond_, int_value);
+    }
+    if (node["pmax_elmts"]) {
+        int int_value = node["pmax_elmts"].as<int>();
+        HYPRE_BoomerAMGSetAggPMaxElmts(precond_, int_value);
+    }
+    if (node["agg_num_levels"]) {
+        int int_value = node["agg_num_levels"].as<int>();
+        HYPRE_BoomerAMGSetAggNumLevels(precond_, int_value);
+    }
+    if (node["agg_interp_type"]) {
+        int int_value = node["agg_interp_type"].as<int>();
+        HYPRE_BoomerAMGSetAggInterpType(precond_, int_value);
+    }
+    if (node["agg_pmax_elmts"]) {
+        int int_value = node["agg_pmax_elmts"].as<int>();
+        HYPRE_BoomerAMGSetAggPMaxElmts(precond_, int_value);
+    }
+    if (node["trunc_factor"]) {
+        double float_value = node["trunc_factor"].as<double>();
+        HYPRE_BoomerAMGSetTruncFactor(precond_, float_value);
+    }
+
+    if (node["smooth_type"]) {
+        int smooth_type = node["smooth_type"].as<int>();
+        HYPRE_BoomerAMGSetSmoothType(precond_, smooth_type);
+    }
+
     precondSetupPtr_ = &HYPRE_BoomerAMGSetup;
     precondSolvePtr_ = &HYPRE_BoomerAMGSolve;
     precondDestroyPtr_ = &HYPRE_BoomerAMGDestroy;
@@ -403,7 +471,8 @@ void HypreSystem::check_solution()
     if (err != 0)
       throw std::runtime_error("Cannot read matrix sizes in file: " + matfile);
 
-    HYPRE_Int lastSeen = totalRows_ + 10;
+    HYPRE_Int seenRow = totalRows_ + 10;
+    HYPRE_Int seenCol = totalRows_ + 10;
     HYPRE_Int idx = 0;
     HYPRE_Int ncols = 1;
     for (int i=0; i < nnz; i++) {
@@ -412,15 +481,16 @@ void HypreSystem::check_solution()
 #else
       fscanf(fh, "%d %d %lf\n", &irow, &icol, &value);
 #endif
-      irow--;
-      icol--;
-      HYPRE_IJMatrixAddToValues(mat_, 1, &ncols, &irow, &icol, &value);
-      rowFilled_[irow] = 1;
+        irow--;
+        icol--;
+        HYPRE_IJMatrixAddToValues(mat_, 1, &ncols, &irow, &icol, &value);
+        rowFilled_[irow] = 1;
 
-      if (irow != lastSeen) {
-        rowOrder_[idx++] = irow;
-        lastSeen = irow;
-      }
+        if ((irow != seenRow) && (icol != seenCol)) {
+            rowOrder_[idx++] = irow;
+            seenRow = irow;
+            seenCol = icol;
+        }
     }
 
     auto stop = std::chrono::system_clock::now();

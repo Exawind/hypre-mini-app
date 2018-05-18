@@ -15,9 +15,9 @@ include_directories(SYSTEM ${MPI_CXX_INCLUDE_PATH})
 find_package(HYPRE REQUIRED)
 include_directories(SYSTEM ${HYPRE_INCLUDE_DIRS})
 
-set(YAML_CPP_BUILD_TESTS OFF)
-set(YAML_CPP_BUILD_TOOLS OFF)
-set(YAML_CPP_BUILD_CONTRIB OFF)
+set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Build tests")
+set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Build tools")
+set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Build contrib")
 
 add_subdirectory(deps/yaml-cpp)
 
