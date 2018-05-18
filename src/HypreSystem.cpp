@@ -65,8 +65,8 @@ HypreSystem::load()
         load_sln_vector(slnfile);
     }
 
-    if (linsys["output_system"])
-        outputSystem_ = linsys["output_system"].as<bool>();
+    if (linsys["write_outputs"])
+        outputSystem_ = linsys["write_outputs"].as<bool>();
 
     YAML::Node solver = inpfile_["solver_settings"];
     std::string method = solver["method"].as<std::string>();
