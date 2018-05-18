@@ -456,6 +456,7 @@ void HypreSystem::read_mm_matrix(std::string matfile)
     rowOrder_.resize(totalRows_);
 
     FILE* fh;
+    MM_typecode matcode;
     int err;
     int msize, nsize, nnz;
     HYPRE_Int irow, icol;
@@ -465,12 +466,18 @@ void HypreSystem::read_mm_matrix(std::string matfile)
         throw std::runtime_error("Cannot open matrix file: " + matfile);
     }
 
-    // Skip checks this time; already performed during scan step
+    err = mm_read_banner(fh, &matcode);
+    if (err != 0)
+        throw std::runtime_error("Cannot read matrix banner");
+
+    if (!mm_is_valid(matcode) || !mm_is_coordinate(matcode))
+        throw std::runtime_error("Invalid matrix market file encountered");
 
     err = mm_read_mtx_crd_size(fh, &msize, &nsize, &nnz);
     if (err != 0)
         throw std::runtime_error("Cannot read matrix sizes in file: " + matfile);
 
+    bool isSymmetric = mm_is_symmetric(matcode);
     HYPRE_Int seenRow = totalRows_ + 10;
     HYPRE_Int seenCol = totalRows_ + 10;
     HYPRE_Int idx = 0;
@@ -485,6 +492,10 @@ void HypreSystem::read_mm_matrix(std::string matfile)
         icol--;
         HYPRE_IJMatrixAddToValues(mat_, 1, &ncols, &irow, &icol, &value);
         rowFilled_[irow] = 1;
+        if (isSymmetric && (irow != icol)) {
+            HYPRE_IJMatrixAddToValues(mat_, 1, &ncols, &icol, &irow, &value);
+            rowFilled_[icol] = 1;
+        }
 
         if ((irow != seenRow) && (icol != seenCol)) {
             rowOrder_[idx++] = irow;
