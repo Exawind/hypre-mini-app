@@ -471,7 +471,8 @@ void HypreSystem::read_mm_matrix(std::string matfile)
     if (err != 0)
         throw std::runtime_error("Cannot read matrix sizes in file: " + matfile);
 
-    HYPRE_Int lastSeen = totalRows_ + 10;
+    HYPRE_Int seenRow = totalRows_ + 10;
+    HYPRE_Int seenCol = totalRows_ + 10;
     HYPRE_Int idx = 0;
     HYPRE_Int ncols = 1;
     for (int i=0; i < nnz; i++) {
@@ -485,9 +486,10 @@ void HypreSystem::read_mm_matrix(std::string matfile)
         HYPRE_IJMatrixAddToValues(mat_, 1, &ncols, &irow, &icol, &value);
         rowFilled_[irow] = 1;
 
-        if (irow != lastSeen) {
+        if ((irow != seenRow) && (icol != seenCol)) {
             rowOrder_[idx++] = irow;
-            lastSeen = irow;
+            seenRow = irow;
+            seenCol = icol;
         }
     }
 
