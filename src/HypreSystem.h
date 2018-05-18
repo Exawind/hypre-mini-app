@@ -9,6 +9,8 @@
 #include "krylov.h"
 #include "HYPRE.h"
 
+#include "yaml-cpp/yaml.h"
+
 #include <string>
 #include <vector>
 #include <utility>
@@ -18,7 +20,9 @@ namespace nalu {
 class HypreSystem
 {
 public:
-    HypreSystem(MPI_Comm);
+    HypreSystem(MPI_Comm, YAML::Node&);
+
+    void load();
 
     void load_matrix(std::string);
 
@@ -31,10 +35,6 @@ public:
     {
         read_mm_vector(slnfile, slnRef_);
     }
-
-    void setup_preconditioner();
-
-    void setup_solver();
 
     void solve();
 
@@ -65,8 +65,18 @@ private:
     //! finalize system
     void finalize_system();
 
+    //! Setup BoomerAMG
+    void setup_boomeramg_precond();
+
+    void setup_boomeramg_solver();
+
+    //! Setup GMRES
+    void setup_gmres();
+
     //! MPI Communicator object
     MPI_Comm comm_;
+
+    YAML::Node& inpfile_;
 
     //! Flag indicating whether a row was filled
     std::vector<int> rowFilled_;
@@ -117,6 +127,23 @@ private:
     //! Global ID of the last row on this processor
     HYPRE_Int iUpper_{0};
 
+    HYPRE_Int (*solverDestroyPtr_)(HYPRE_Solver);
+    HYPRE_Int (*solverSetupPtr_)(
+        HYPRE_Solver, HYPRE_ParCSRMatrix, HYPRE_ParVector, HYPRE_ParVector);
+    HYPRE_Int (*solverSolvePtr_)(
+        HYPRE_Solver, HYPRE_ParCSRMatrix, HYPRE_ParVector, HYPRE_ParVector);
+    HYPRE_Int (*solverPrecondPtr_)(
+        HYPRE_Solver,
+        HYPRE_PtrToParSolverFcn,
+        HYPRE_PtrToParSolverFcn,
+        HYPRE_Solver);
+
+    HYPRE_Int (*precondDestroyPtr_)(HYPRE_Solver);
+    HYPRE_Int (*precondSetupPtr_)(
+        HYPRE_Solver, HYPRE_ParCSRMatrix, HYPRE_ParVector, HYPRE_ParVector);
+    HYPRE_Int (*precondSolvePtr_)(
+        HYPRE_Solver, HYPRE_ParCSRMatrix, HYPRE_ParVector, HYPRE_ParVector);
+
     int M_{0};
     int N_{0};
     int nnz_{0};
@@ -124,6 +151,9 @@ private:
     int nproc_{0};
 
     bool solveComplete_{false};
+    bool checkSolution_{false};
+    bool outputSystem_{false};
+    bool usePrecond_{true};
 };
 
 } // namespace nalu

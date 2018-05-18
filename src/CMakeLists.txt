@@ -4,7 +4,7 @@ add_executable(hypre_app
   HypreSystem.cpp
   main.cpp
   )
-target_link_libraries(hypre_app ${HYPRE_LIBRARIES} ${MPI_CXX_LIBRARIES} ${MPI_C_LIBRARIES})
+target_link_libraries(hypre_app ${HYPRE_LIBRARIES} yaml-cpp ${MPI_CXX_LIBRARIES} ${MPI_C_LIBRARIES})
 
 if(MPI_COMPILE_FLAGS)
   set_target_properties(hypre_app PROPERTIES
