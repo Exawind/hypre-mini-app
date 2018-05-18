@@ -15,4 +15,11 @@ include_directories(SYSTEM ${MPI_CXX_INCLUDE_PATH})
 find_package(HYPRE REQUIRED)
 include_directories(SYSTEM ${HYPRE_INCLUDE_DIRS})
 
+set(YAML_CPP_BUILD_TESTS OFF)
+set(YAML_CPP_BUILD_TOOLS OFF)
+set(YAML_CPP_BUILD_CONTRIB OFF)
+
+add_subdirectory(deps/yaml-cpp)
+
+include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/deps/yaml-cpp/include/")
 add_subdirectory(src)
