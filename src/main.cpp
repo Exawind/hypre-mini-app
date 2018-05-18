@@ -2,6 +2,8 @@
 #include "HypreSystem.h"
 #include "mpi.h"
 
+#include "yaml-cpp/yaml.h"
+
 #include <iostream>
 #include <chrono>
 
@@ -13,28 +15,23 @@ int main(int argc, char* argv[])
 
     auto start = std::chrono::system_clock::now();
 
-    nalu::HypreSystem linsys(MPI_COMM_WORLD);
 
-    if (argc != 4) {
+    if (argc != 2) {
         std::cout << "ERROR!! Incorrect arguments passed to program." << std::endl
-                  << "Usage: hypre_app MATRIX RHS SLN" << std::endl << std::endl;
+                  << "Usage: hypre_app INPUT_FILE" << std::endl << std::endl;
         return 1;
     }
 
-    std::string matfile(argv[1]);
-    std::string rhsfile(argv[2]);
-    std::string slnfile(argv[3]);
+    std::string yaml_filename(argv[1]);
+    YAML::Node inpfile = YAML::LoadFile(yaml_filename);
 
-    linsys.load_matrix(matfile);
-    linsys.load_rhs_vector(rhsfile);
-    linsys.load_sln_vector(slnfile);
+    nalu::HypreSystem linsys(MPI_COMM_WORLD, inpfile);
 
-    linsys.setup_preconditioner();
-    linsys.setup_solver();
+    linsys.load();
     linsys.solve();
 
     linsys.check_solution();
-    // linsys.output_linear_system();
+    linsys.output_linear_system();
     linsys.summarize_timers();
 
     MPI_Barrier(MPI_COMM_WORLD);

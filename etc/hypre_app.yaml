@@ -1,0 +1,29 @@
+
+linear_system:
+  type: matrix_market
+  matrix_file: mat.mm
+  rhs_file: rhs.mm
+  sln_file: sln.mm
+  write_outputs: false
+
+solver_settings:
+  method: gmres
+  preconditioner: boomeramg
+  tolerance: 1.0e-6
+  max_iterations: 100
+  kspace: 10
+  print_level: 4
+  reuse_preconditioner: false
+
+boomeramg_settings:
+  print_level: 1
+  max_iterations: 1
+  tolerance: 0.0
+  coarsen_type: 6
+  cycle_type: 1
+  relax_type: 6
+  relax_order: 1
+  num_sweeps: 2
+  max_levels: 20
+  interp_type: 0
+  strong_threshold: 0.57
