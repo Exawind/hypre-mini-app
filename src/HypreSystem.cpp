@@ -21,6 +21,7 @@ extern "C"
 #include <cmath>
 #include <cstdio>
 #include <iostream>
+#include <sstream>
 
 namespace nalu {
 
@@ -113,6 +114,30 @@ void HypreSystem::load_matrix_market()
 }
 
 void HypreSystem::load_hypre_format()
+{
+    YAML::Node linsys = inpfile_["linear_system"];
+    int nfiles = get_optional(linsys, "num_partitions", nproc_);
+
+    if (nfiles == nproc_)
+        load_hypre_native();
+    else {
+        std::string matfile = linsys["matrix_file"].as<std::string>();
+        std::string rhsfile = linsys["rhs_file"].as<std::string>();
+        determine_ij_system_sizes(matfile, nfiles);
+        init_ij_system();
+        read_ij_matrix(matfile, nfiles);
+        read_ij_vector(rhsfile, nfiles, rhs_);
+
+        if (linsys["sln_file"]) {
+            std::string slnfile = linsys["sln_file"].as<std::string>();
+            checkSolution_ = true;
+            read_ij_vector(slnfile, nfiles, slnRef_);
+        }
+        needFinalize_ = false;
+    }
+}
+
+void HypreSystem::load_hypre_native()
 {
     auto start = std::chrono::system_clock::now();
     if (iproc_ == 0) {
@@ -437,6 +462,113 @@ void HypreSystem::load_mm_matrix(std::string matfile)
     MPI_Bcast(rowFilled_.data(), totalRows_, MPI_INT, 0, comm_);
 }
 
+void HypreSystem::init_ij_system()
+{
+    HYPRE_Int rowsPerProc = totalRows_ / nproc_;
+    HYPRE_Int remainder = totalRows_ % nproc_;
+
+    iLower_ = rowsPerProc * iproc_ + std::min<HYPRE_Int>(iproc_, remainder);
+    iUpper_ = rowsPerProc * (iproc_ + 1) + std::min<HYPRE_Int>(iproc_ + 1, remainder) - 1;
+    numRows_ = iUpper_ - iLower_ + 1;
+
+    std::cout << "  Rank: " << std::setw(4) << iproc_ << ":: iLower = "
+              << std::setw(9) << iLower_ << "; iUpper = "
+              << std::setw(9) << iUpper_ << "; numRows = "
+              << numRows_ << std::endl;
+    MPI_Barrier(comm_);
+
+    // Create HYPRE data structures
+    init_system();
+}
+
+void HypreSystem::read_ij_vector(std::string vecfile, int nfiles, HYPRE_IJVector& vec)
+{
+    auto start = std::chrono::system_clock::now();
+
+    HYPRE_Int ilower, iupper;
+    HYPRE_Int irow;
+    double value;
+    int ret;
+
+    for (int ii=iproc_; ii < nfiles; ii+=nproc_) {
+        FILE* fh;
+        std::ostringstream suffix;
+        suffix << vecfile << "." << std::setw(5) << std::setfill('0') << ii;
+
+        if ((fh = fopen(suffix.str().c_str(), "r")) == NULL) {
+            throw std::runtime_error("Cannot open vector file: " + suffix.str());
+        }
+
+#ifdef HYPRE_BIGINT
+        fscanf(fh, "%lld %lld\n", &ilower, &iupper);
+#else
+        fscanf(fh, "%d %d\n", &ilower, &iupper);
+#endif
+        HYPRE_Int numrows = (iupper - ilower) + 1;
+        for (HYPRE_Int j=0; j < numrows; j++) {
+#ifdef HYPRE_BIGINT
+            ret = fscanf(fh, "%lld%*[ \t]%le\n", &irow, &value);
+#else
+            ret = fscanf(fh, "%d%*[ \t]%le\n", &irow, &value);
+#endif
+            HYPRE_IJVectorAddToValues(vec, 1, &irow, &value);
+        }
+        fclose(fh);
+    }
+
+    MPI_Barrier(comm_);
+    auto stop = std::chrono::system_clock::now();
+    std::chrono::duration<double> elapsed = stop - start;
+    timers_.emplace_back("Read vector", elapsed.count());
+}
+
+void HypreSystem::read_ij_matrix(std::string matfile, int nfiles)
+{
+    auto start = std::chrono::system_clock::now();
+
+    HYPRE_Int ilower, iupper, jlower, jupper;
+    HYPRE_Int irow, icol;
+    HYPRE_Int ncols = 1;
+    double value;
+    int ret;
+
+    for (int ii=iproc_; ii < nfiles; ii+=nproc_) {
+        FILE* fh;
+        std::ostringstream suffix;
+        suffix << matfile << "." << std::setw(5) << std::setfill('0') << ii;
+
+        if ((fh = fopen(suffix.str().c_str(), "r")) == NULL) {
+             throw std::runtime_error("Cannot open matrix file: " + suffix.str());
+        }
+
+#ifdef HYPRE_BIGINT
+        fscanf(fh, "%lld %lld %lld %lld\n", &ilower, &iupper, &jlower, &jupper);
+#else
+        fscanf(fh, "%d %d %d %d\n", &ilower, &iupper, &jlower, &jupper);
+#endif
+
+#ifdef HYPRE_BIGINT
+        ret = fscanf(fh, "%lld %lld%*[ \t]%le\n", &irow, &icol, &value);
+#else
+        ret = fscanf(fh, "%d %d%*[ \t]%le\n", &irow, &icol, &value);
+#endif
+        while (ret != EOF) {
+            HYPRE_IJMatrixAddToValues(mat_, 1, &ncols, &irow, &icol, &value);
+#ifdef HYPRE_BIGINT
+            ret = fscanf(fh, "%lld %lld%*[ \t]%le\n", &irow, &icol, &value);
+#else
+            ret = fscanf(fh, "%d %d%*[ \t]%le\n", &irow, &icol, &value);
+#endif
+        }
+        fclose(fh);
+    }
+
+    MPI_Barrier(comm_);
+    auto stop = std::chrono::system_clock::now();
+    std::chrono::duration<double> elapsed = stop - start;
+    timers_.emplace_back("Read matrix", elapsed.count());
+}
+
 void HypreSystem::init_system()
 {
     auto start = std::chrono::system_clock::now();
@@ -584,6 +716,45 @@ void HypreSystem::read_mm_matrix(std::string matfile)
     timers_.emplace_back("Read matrix", elapsed.count());
 
     fclose(fh);
+}
+
+void HypreSystem::determine_ij_system_sizes(std::string matfile, int nfiles)
+{
+    auto start = std::chrono::system_clock::now();
+
+    HYPRE_Int ilower, iupper, jlower, jupper;
+    HYPRE_Int imin = 0;
+    HYPRE_Int imax = 0;
+    HYPRE_Int gmin = 0;
+    HYPRE_Int gmax = 0;
+
+    for (int ii=iproc_; ii < nfiles; ii+=nproc_) {
+        FILE* fh;
+        std::ostringstream suffix;
+        suffix << matfile << "." << std::setw(5) << std::setfill('0') << ii;
+
+        if ((fh = fopen(suffix.str().c_str(), "r")) == NULL) {
+            throw std::runtime_error("Cannot open matrix file: " + suffix.str());
+        }
+
+#ifdef HYPRE_BIGINT
+        fscanf(fh, "%lld %lld %lld %lld\n", &ilower, &iupper, &jlower, &jupper);
+#else
+        fscanf(fh, "%d %d %d %d\n", &ilower, &iupper, &jlower, &jupper);
+#endif
+        imin = std::min(imin, ilower);
+        imax = std::max(imax, iupper);
+        fclose(fh);
+    }
+
+    MPI_Allreduce(&imin, &gmin, 1, HYPRE_MPI_INT, MPI_MIN, comm_);
+    MPI_Allreduce(&imax, &gmax, 1, HYPRE_MPI_INT, MPI_MAX, comm_);
+    totalRows_ = (gmax - gmin) + 1;
+
+    auto stop = std::chrono::system_clock::now();
+    std::chrono::duration<double> elapsed = stop - start;
+    std::cout << elapsed.count() << " seconds" << std::endl;
+    timers_.emplace_back("Scan matrix", elapsed.count());
 }
 
 void HypreSystem::determine_system_sizes(std::string matfile)

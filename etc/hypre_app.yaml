@@ -9,6 +9,7 @@ linear_system:
   rhs_file: rhs.mm            # RHS file
   sln_file: sln.mm            # Reference solution for comparison
   write_outputs: false        # Write out Matrix, RHS, Solution files from the run
+  num_partitions: 2           # Number of partitions of IJ files (if MPI rank != num files)
 
 solver_settings:
   method: gmres               # Solver: [gmres, boomeramg]

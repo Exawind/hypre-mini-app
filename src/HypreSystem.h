@@ -45,6 +45,21 @@ private:
     //! Load files in HYPRE IJMatrix format
     void load_hypre_format();
 
+    //! Load files using HYPRE_IJ{Matrix,Vector}Read
+    void load_hypre_native();
+
+    //! Determine global sizes from IJ files
+    void determine_ij_system_sizes(std::string, int);
+
+    //! Initialize data structures when reading IJ files
+    void init_ij_system();
+
+    //! Read IJ Matrix into memory
+    void read_ij_matrix(std::string, int);
+
+    //! Read IJ Vector into memory
+    void read_ij_vector(std::string, int, HYPRE_IJVector&);
+
     //! Scan and load the Matrix Market file
     void load_mm_matrix(std::string);
 
