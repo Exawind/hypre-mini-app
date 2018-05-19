@@ -4,3 +4,4 @@
 [submodule "deps/hypre"]
 	path = deps/hypre
 	url = git@github.com:Exawind/hypre.git
+    ignore = untracked
