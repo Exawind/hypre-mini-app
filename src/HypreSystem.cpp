@@ -356,8 +356,10 @@ void HypreSystem::output_linear_system()
 void HypreSystem::check_solution()
 {
     if (!checkSolution_) {
-        std::cout << "Reference solution not provided; skipping error check."
-                  << std::endl;
+        if (iproc_ == 0) {
+            std::cout << "Reference solution not provided; skipping error check."
+                      << std::endl;
+        }
         return;
     }
 
@@ -498,11 +500,14 @@ void HypreSystem::finalize_system()
     HYPRE_IJMatrixAssemble(mat_);
     HYPRE_IJVectorAssemble(rhs_);
     HYPRE_IJVectorAssemble(sln_);
-    HYPRE_IJVectorAssemble(slnRef_);
     HYPRE_IJMatrixGetObject(mat_, (void**)&parMat_);
     HYPRE_IJVectorGetObject(rhs_, (void**)&(parRhs_));
     HYPRE_IJVectorGetObject(sln_, (void**)&(parSln_));
-    HYPRE_IJVectorGetObject(sln_, (void**)&(parSlnRef_));
+
+    if (checkSolution_) {
+        HYPRE_IJVectorAssemble(slnRef_);
+        HYPRE_IJVectorGetObject(sln_, (void**)&(parSlnRef_));
+    }
 
     MPI_Barrier(comm_);
     if (iproc_ == 0) {
