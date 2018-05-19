@@ -52,17 +52,14 @@ void
 HypreSystem::load()
 {
     YAML::Node linsys = inpfile_["linear_system"];
+    std::string mat_format = get_optional<std::string>(linsys, "type", "matrix_market") ;
 
-    std::string matfile = linsys["matrix_file"].as<std::string>();
-    std::string rhsfile = linsys["rhs_file"].as<std::string>();
-
-    load_matrix(matfile);
-    load_rhs_vector(rhsfile);
-
-    if (linsys["sln_file"]) {
-        std::string slnfile = linsys["sln_file"].as<std::string>();
-        checkSolution_ = true;
-        load_sln_vector(slnfile);
+    if (mat_format == "matrix_market") {
+        load_matrix_market();
+    } else if (mat_format == "hypre_ij") {
+        load_hypre_format();
+    } else {
+        throw std::runtime_error("Invalid linear system format option: " + mat_format);
     }
 
     if (linsys["write_outputs"])
@@ -93,6 +90,78 @@ HypreSystem::load()
         throw std::runtime_error("Invalid option for solver method provided: "
                                  + method);
     }
+}
+
+void HypreSystem::load_matrix_market()
+{
+    YAML::Node linsys = inpfile_["linear_system"];
+
+    std::string matfile = linsys["matrix_file"].as<std::string>();
+    std::string rhsfile = linsys["rhs_file"].as<std::string>();
+
+    load_mm_matrix(matfile);
+    read_mm_vector(rhsfile, rhs_);
+
+    if (linsys["sln_file"]) {
+        std::string slnfile = linsys["sln_file"].as<std::string>();
+        checkSolution_ = true;
+        read_mm_vector(slnfile, slnRef_);
+    }
+
+    // Indicate that we need a check on missing rows and a final assemble call
+    needFinalize_ = true;
+}
+
+void HypreSystem::load_hypre_format()
+{
+    auto start = std::chrono::system_clock::now();
+    if (iproc_ == 0) {
+        std::cout << "Loading HYPRE IJ files... ";
+    }
+
+    YAML::Node linsys = inpfile_["linear_system"];
+
+    std::string matfile = linsys["matrix_file"].as<std::string>();
+    std::string rhsfile = linsys["rhs_file"].as<std::string>();
+
+    HYPRE_IJMatrixRead(matfile.c_str(), comm_, HYPRE_PARCSR, &mat_);
+    HYPRE_IJVectorRead(rhsfile.c_str(), comm_, HYPRE_PARCSR, &rhs_);
+
+    if (linsys["sln_file"]) {
+        std::string slnfile = linsys["sln_file"].as<std::string>();
+        checkSolution_ = true;
+        HYPRE_IJVectorRead(slnfile.c_str(), comm_, HYPRE_PARCSR, &slnRef_);
+    }
+
+    // Figure out local range
+    HYPRE_Int jlower, jupper;
+    HYPRE_IJMatrixGetLocalRange(mat_, &iLower_, &iUpper_, &jlower, &jupper);
+    numRows_ = (iUpper_ - iLower_ + 1);
+
+
+    // Initialize the solution vector
+    HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &sln_);
+    HYPRE_IJVectorSetObjectType(sln_, HYPRE_PARCSR);
+    HYPRE_IJVectorInitialize(sln_);
+    HYPRE_IJVectorGetObject(sln_, (void**)&parSln_);
+    HYPRE_ParVectorSetConstantValues(parSln_, 0.0);
+
+    // Indicate that the assemble has already been called by HYPRE API
+    needFinalize_ = false;
+
+    auto stop = std::chrono::system_clock::now();
+    std::chrono::duration<double> elapsed = stop - start;
+    if (iproc_ == 0)
+        std::cout << elapsed.count() << " seconds" << std::endl;
+
+    timers_.emplace_back("Load system", elapsed.count());
+
+    MPI_Barrier(comm_);
+    std::cout << "  Rank: " << std::setw(4) << iproc_ << ":: iLower = "
+              << std::setw(9) << iLower_ << "; iUpper = "
+              << std::setw(9) << iUpper_ << "; numRows = "
+              << numRows_ << std::endl;
+    MPI_Barrier(comm_);
 }
 
 void HypreSystem::setup_boomeramg_solver()
@@ -329,7 +398,7 @@ void HypreSystem::summarize_timers()
     }
 }
 
-void HypreSystem::load_matrix(std::string matfile)
+void HypreSystem::load_mm_matrix(std::string matfile)
 {
     // Scan the matrix and determine the sizes
     determine_system_sizes(matfile);
@@ -415,24 +484,24 @@ void HypreSystem::finalize_system()
         std::cout << "Assembling data HYPRE structures... ";
     }
 
-    HYPRE_Int nrows = 1;
-    HYPRE_Int ncols = 1;
-    double setval = 1.0; // Set diagonal to 1 for missing rows
-    for (HYPRE_Int i=iLower_; i < iUpper_; i++) {
-        if (rowFilled_[i] > 0) continue;
-        HYPRE_IJMatrixSetValues(mat_, nrows, &ncols, &i, &i, &setval);
+    if (needFinalize_) {
+        HYPRE_Int nrows = 1;
+        HYPRE_Int ncols = 1;
+        double setval = 1.0; // Set diagonal to 1 for missing rows
+        for (HYPRE_Int i=iLower_; i < iUpper_; i++) {
+            if (rowFilled_[i] > 0) continue;
+            HYPRE_IJMatrixSetValues(mat_, nrows, &ncols, &i, &i, &setval);
+        }
+
     }
 
     HYPRE_IJMatrixAssemble(mat_);
-    HYPRE_IJMatrixGetObject(mat_, (void**)&parMat_);
-
     HYPRE_IJVectorAssemble(rhs_);
-    HYPRE_IJVectorGetObject(rhs_, (void**)&(parRhs_));
-
     HYPRE_IJVectorAssemble(sln_);
-    HYPRE_IJVectorGetObject(sln_, (void**)&(parSln_));
-
     HYPRE_IJVectorAssemble(slnRef_);
+    HYPRE_IJMatrixGetObject(mat_, (void**)&parMat_);
+    HYPRE_IJVectorGetObject(rhs_, (void**)&(parRhs_));
+    HYPRE_IJVectorGetObject(sln_, (void**)&(parSln_));
     HYPRE_IJVectorGetObject(sln_, (void**)&(parSlnRef_));
 
     MPI_Barrier(comm_);

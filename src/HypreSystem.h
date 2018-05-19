@@ -24,18 +24,6 @@ public:
 
     void load();
 
-    void load_matrix(std::string);
-
-    void load_rhs_vector(std::string rhsfile)
-    {
-        read_mm_vector(rhsfile, rhs_);
-    }
-
-    void load_sln_vector(std::string slnfile)
-    {
-        read_mm_vector(slnfile, slnRef_);
-    }
-
     void solve();
 
     //! Output the HYPRE matrix, rhs and solution vectors
@@ -50,6 +38,15 @@ public:
 private:
     HypreSystem() = delete;
     HypreSystem(const HypreSystem&) = delete;
+
+    //! Load files in matrix market format
+    void load_matrix_market();
+
+    //! Load files in HYPRE IJMatrix format
+    void load_hypre_format();
+
+    //! Scan and load the Matrix Market file
+    void load_mm_matrix(std::string);
 
     //! Determine the dimensions of the matrix and the largest row ID
     void determine_system_sizes(std::string);
@@ -154,6 +151,7 @@ private:
     bool checkSolution_{false};
     bool outputSystem_{false};
     bool usePrecond_{true};
+    bool needFinalize_{true};
 };
 
 } // namespace nalu
