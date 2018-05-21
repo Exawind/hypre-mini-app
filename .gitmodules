@@ -1,3 +1,7 @@
 [submodule "deps/yaml-cpp"]
 	path = deps/yaml-cpp
 	url = git@github.com:jbeder/yaml-cpp.git
+[submodule "deps/hypre"]
+	path = deps/hypre
+	url = git@github.com:Exawind/hypre.git
+    ignore = untracked

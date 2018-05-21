@@ -1,20 +1,33 @@
+# -*- mode: yaml -*-
+#
+# Sample input file for HYPRE mini-app
+#
 
 linear_system:
-  type: matrix_market
-  matrix_file: mat.mm
-  rhs_file: rhs.mm
-  sln_file: sln.mm
-  write_outputs: false
+  type: matrix_market         # File type: [matrix_market, hypre_ij]
+  matrix_file: mat.mm         # Matrix file, leave processor suffixes for hypre_ij
+  rhs_file: rhs.mm            # RHS file
+  sln_file: sln.mm            # Reference solution for comparison
+  write_outputs: false        # Write out Matrix, RHS, Solution files from the run
+  num_partitions: 2           # Number of partitions of IJ files (if MPI rank != num files)
 
 solver_settings:
-  method: gmres
-  preconditioner: boomeramg
-  tolerance: 1.0e-6
-  max_iterations: 100
-  kspace: 10
-  print_level: 4
-  reuse_preconditioner: false
+  method: gmres               # Solver: [gmres, boomeramg]
+  preconditioner: boomeramg   # [boomeramg, none]
+  tolerance: 1.0e-6           # tolerance for convergence check
+  max_iterations: 100         # max iterations of the linear solver
+  kspace: 10                  # Krylov vector space
+  print_level: 4              # Verbosity of HYPRE messages
+  reuse_preconditioner: false #
 
+#
+# Settings for BoomerAMG preconditioner
+#
+# See https://computation.llnl.gov/sites/default/files/public/hypre-2.11.2_ref_manual.pdf
+#
+# To use HYPRE_BoomerAMGSetCycleType, provide cycle_type parameter, to invoke
+# HYPRE_BoomerAMGSetRelaxOrder use relax_order, and so on.
+#
 boomeramg_settings:
   print_level: 1
   max_iterations: 1
