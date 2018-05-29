@@ -1,0 +1,123 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.8	//
+HYPRESYSTEM_H	HypreSystem.h	2;"	d
+HypreSystem	HypreSystem.cpp	/^HypreSystem::HypreSystem($/;"	f	class:nalu::HypreSystem
+HypreSystem	HypreSystem.h	/^class HypreSystem$/;"	c	namespace:nalu
+MM_ARRAY_STR	mmio.h	105;"	d
+MM_COMPLEX_STR	mmio.h	109;"	d
+MM_COORDINATE_STR	mmio.h	107;"	d
+MM_COULD_NOT_READ_FILE	mmio.h	79;"	d
+MM_COULD_NOT_WRITE_FILE	mmio.h	85;"	d
+MM_DENSE_STR	mmio.h	106;"	d
+MM_GENERAL_STR	mmio.h	112;"	d
+MM_HERM_STR	mmio.h	114;"	d
+MM_INT_STR	mmio.h	111;"	d
+MM_IO_H	mmio.h	10;"	d
+MM_LINE_TOO_LONG	mmio.h	84;"	d
+MM_MAX_LINE_LENGTH	mmio.h	12;"	d
+MM_MAX_TOKEN_LENGTH	mmio.h	14;"	d
+MM_MTX_STR	mmio.h	104;"	d
+MM_NOT_MTX	mmio.h	81;"	d
+MM_NO_HEADER	mmio.h	82;"	d
+MM_PATTERN_STR	mmio.h	116;"	d
+MM_PREMATURE_EOF	mmio.h	80;"	d
+MM_REAL_STR	mmio.h	110;"	d
+MM_SKEW_STR	mmio.h	115;"	d
+MM_SPARSE_STR	mmio.h	108;"	d
+MM_SYMM_STR	mmio.h	113;"	d
+MM_UNSUPPORTED_TYPE	mmio.h	83;"	d
+MM_typecode	mmio.h	/^typedef char MM_typecode[4];$/;"	t
+MatrixMarketBanner	mmio.h	13;"	d
+check_solution	HypreSystem.cpp	/^void HypreSystem::check_solution()$/;"	f	class:nalu::HypreSystem
+comm_	HypreSystem.h	/^    MPI_Comm comm_;$/;"	m	class:nalu::HypreSystem
+determine_ij_system_sizes	HypreSystem.cpp	/^void HypreSystem::determine_ij_system_sizes(std::string matfile, int nfiles)$/;"	f	class:nalu::HypreSystem
+determine_system_sizes	HypreSystem.cpp	/^void HypreSystem::determine_system_sizes(std::string matfile)$/;"	f	class:nalu::HypreSystem
+finalize_system	HypreSystem.cpp	/^  void HypreSystem::finalize_system()$/;"	f	class:nalu::HypreSystem
+get_optional	HypreSystem.cpp	/^T get_optional(YAML::Node& node, std::string key, T default_value)$/;"	f	namespace:nalu::__anon1
+init_ij_system	HypreSystem.cpp	/^void HypreSystem::init_ij_system()$/;"	f	class:nalu::HypreSystem
+init_system	HypreSystem.cpp	/^void HypreSystem::init_system()$/;"	f	class:nalu::HypreSystem
+inpfile_	HypreSystem.h	/^    YAML::Node& inpfile_;$/;"	m	class:nalu::HypreSystem
+load	HypreSystem.cpp	/^HypreSystem::load()$/;"	f	class:nalu::HypreSystem
+load_hypre_format	HypreSystem.cpp	/^void HypreSystem::load_hypre_format()$/;"	f	class:nalu::HypreSystem
+load_hypre_native	HypreSystem.cpp	/^void HypreSystem::load_hypre_native()$/;"	f	class:nalu::HypreSystem
+load_matrix_market	HypreSystem.cpp	/^void HypreSystem::load_matrix_market()$/;"	f	class:nalu::HypreSystem
+load_mm_matrix	HypreSystem.cpp	/^void HypreSystem::load_mm_matrix(std::string matfile)$/;"	f	class:nalu::HypreSystem
+main	main.cpp	/^int main(int argc, char* argv[])$/;"	f
+mat_	HypreSystem.h	/^    HYPRE_IJMatrix mat_;$/;"	m	class:nalu::HypreSystem
+mm_clear_typecode	mmio.h	70;"	d
+mm_initialize_typecode	mmio.h	73;"	d
+mm_is_array	mmio.h	36;"	d
+mm_is_complex	mmio.h	38;"	d
+mm_is_coordinate	mmio.h	34;"	d
+mm_is_dense	mmio.h	35;"	d
+mm_is_general	mmio.h	44;"	d
+mm_is_hermitian	mmio.h	46;"	d
+mm_is_integer	mmio.h	41;"	d
+mm_is_matrix	mmio.h	31;"	d
+mm_is_pattern	mmio.h	40;"	d
+mm_is_real	mmio.h	39;"	d
+mm_is_skew	mmio.h	45;"	d
+mm_is_sparse	mmio.h	33;"	d
+mm_is_symmetric	mmio.h	43;"	d
+mm_is_valid	mmio.c	/^int mm_is_valid(MM_typecode matcode)$/;"	f
+mm_read_banner	mmio.c	/^int mm_read_banner(FILE *f, MM_typecode *matcode)$/;"	f
+mm_read_mtx_array_size	mmio.c	/^int mm_read_mtx_array_size(FILE *f, int *M, int *N)$/;"	f
+mm_read_mtx_crd	mmio.c	/^int mm_read_mtx_crd(char *fname, int *M, int *N, int *nz, int **I, int **J, $/;"	f
+mm_read_mtx_crd_data	mmio.c	/^int mm_read_mtx_crd_data(FILE *f, int M, int N, int nz, int I[], int J[],$/;"	f
+mm_read_mtx_crd_entry	mmio.c	/^int mm_read_mtx_crd_entry(FILE *f, int *I, int *J,$/;"	f
+mm_read_mtx_crd_size	mmio.c	/^int mm_read_mtx_crd_size(FILE *f, int *M, int *N, int *nz )$/;"	f
+mm_read_unsymmetric_sparse	mmio.c	/^int mm_read_unsymmetric_sparse(const char *fname, int *M_, int *N_, int *nz_,$/;"	f
+mm_set_array	mmio.h	55;"	d
+mm_set_complex	mmio.h	59;"	d
+mm_set_coordinate	mmio.h	54;"	d
+mm_set_dense	mmio.h	56;"	d
+mm_set_general	mmio.h	66;"	d
+mm_set_hermitian	mmio.h	68;"	d
+mm_set_integer	mmio.h	62;"	d
+mm_set_matrix	mmio.h	53;"	d
+mm_set_pattern	mmio.h	61;"	d
+mm_set_real	mmio.h	60;"	d
+mm_set_skew	mmio.h	67;"	d
+mm_set_sparse	mmio.h	57;"	d
+mm_set_symmetric	mmio.h	65;"	d
+mm_strdup	mmio.c	/^char *mm_strdup(const char *s)$/;"	f
+mm_typecode_to_str	mmio.c	/^char  *mm_typecode_to_str(MM_typecode matcode)$/;"	f
+mm_write_banner	mmio.c	/^int mm_write_banner(FILE *f, MM_typecode matcode)$/;"	f
+mm_write_mtx_array_size	mmio.c	/^int mm_write_mtx_array_size(FILE *f, int M, int N)$/;"	f
+mm_write_mtx_crd	mmio.c	/^int mm_write_mtx_crd(char fname[], int M, int N, int nz, int I[], int J[],$/;"	f
+mm_write_mtx_crd_size	mmio.c	/^int mm_write_mtx_crd_size(FILE *f, int M, int N, int nz)$/;"	f
+nalu	HypreSystem.cpp	/^namespace nalu {$/;"	n	file:
+nalu	HypreSystem.h	/^namespace nalu {$/;"	n
+output_linear_system	HypreSystem.cpp	/^void HypreSystem::output_linear_system()$/;"	f	class:nalu::HypreSystem
+parMat_	HypreSystem.h	/^    HYPRE_ParCSRMatrix parMat_;$/;"	m	class:nalu::HypreSystem
+parRhs_	HypreSystem.h	/^    HYPRE_ParVector parRhs_;$/;"	m	class:nalu::HypreSystem
+parSlnRef_	HypreSystem.h	/^    HYPRE_ParVector parSlnRef_;$/;"	m	class:nalu::HypreSystem
+parSln_	HypreSystem.h	/^    HYPRE_ParVector parSln_;$/;"	m	class:nalu::HypreSystem
+precondDestroyPtr_	HypreSystem.h	/^    HYPRE_Int (*precondDestroyPtr_)(HYPRE_Solver);$/;"	m	class:nalu::HypreSystem
+precondSetupPtr_	HypreSystem.h	/^    HYPRE_Int (*precondSetupPtr_)($/;"	m	class:nalu::HypreSystem
+precondSolvePtr_	HypreSystem.h	/^    HYPRE_Int (*precondSolvePtr_)($/;"	m	class:nalu::HypreSystem
+precond_	HypreSystem.h	/^    HYPRE_Solver precond_;$/;"	m	class:nalu::HypreSystem
+read_ij_matrix	HypreSystem.cpp	/^void HypreSystem::read_ij_matrix(std::string matfile, int nfiles)$/;"	f	class:nalu::HypreSystem
+read_ij_vector	HypreSystem.cpp	/^void HypreSystem::read_ij_vector(std::string vecfile, int nfiles, HYPRE_IJVector& vec)$/;"	f	class:nalu::HypreSystem
+read_mm_matrix	HypreSystem.cpp	/^  void HypreSystem::read_mm_matrix(std::string matfile)$/;"	f	class:nalu::HypreSystem
+read_mm_vector	HypreSystem.cpp	/^  void HypreSystem::read_mm_vector(std::string mmfile, HYPRE_IJVector& vec)$/;"	f	class:nalu::HypreSystem
+rhs_	HypreSystem.h	/^    HYPRE_IJVector rhs_;$/;"	m	class:nalu::HypreSystem
+rowFilled_	HypreSystem.h	/^    std::vector<int> rowFilled_;$/;"	m	class:nalu::HypreSystem
+rowOrder_	HypreSystem.h	/^    std::vector<HYPRE_Int> rowOrder_;$/;"	m	class:nalu::HypreSystem
+setup_boomeramg_precond	HypreSystem.cpp	/^void HypreSystem::setup_boomeramg_precond()$/;"	f	class:nalu::HypreSystem
+setup_boomeramg_solver	HypreSystem.cpp	/^void HypreSystem::setup_boomeramg_solver()$/;"	f	class:nalu::HypreSystem
+setup_gmres	HypreSystem.cpp	/^void HypreSystem::setup_gmres()$/;"	f	class:nalu::HypreSystem
+slnRef_	HypreSystem.h	/^    HYPRE_IJVector slnRef_;$/;"	m	class:nalu::HypreSystem
+sln_	HypreSystem.h	/^    HYPRE_IJVector sln_;$/;"	m	class:nalu::HypreSystem
+solve	HypreSystem.cpp	/^  void HypreSystem::solve()$/;"	f	class:nalu::HypreSystem
+solverDestroyPtr_	HypreSystem.h	/^    HYPRE_Int (*solverDestroyPtr_)(HYPRE_Solver);$/;"	m	class:nalu::HypreSystem
+solverPrecondPtr_	HypreSystem.h	/^    HYPRE_Int (*solverPrecondPtr_)($/;"	m	class:nalu::HypreSystem
+solverSetupPtr_	HypreSystem.h	/^    HYPRE_Int (*solverSetupPtr_)($/;"	m	class:nalu::HypreSystem
+solverSolvePtr_	HypreSystem.h	/^    HYPRE_Int (*solverSolvePtr_)($/;"	m	class:nalu::HypreSystem
+solver_	HypreSystem.h	/^    HYPRE_Solver solver_;$/;"	m	class:nalu::HypreSystem
+summarize_timers	HypreSystem.cpp	/^  void HypreSystem::summarize_timers()$/;"	f	class:nalu::HypreSystem
+timers_	HypreSystem.h	/^    std::vector<std::pair<std::string, double>> timers_;$/;"	m	class:nalu::HypreSystem

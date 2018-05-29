@@ -84,7 +84,7 @@ private:
 
     //! Setup GMRES
     void setup_gmres();
-
+void setup_cogmres();
     //! MPI Communicator object
     MPI_Comm comm_;
 
