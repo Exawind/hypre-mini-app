@@ -1,4 +1,5 @@
 build/*
 build*/*
 install/*
-
+src/CMakeFiles/*
+src/CMakeCache.txt
