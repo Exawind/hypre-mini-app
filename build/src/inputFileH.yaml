@@ -23,7 +23,7 @@ boomeramg_settings:
   cycle_type: 1
   relax_type: 6
   relax_order: 1
-  num_sweeps: 2
+  num_sweeps: 1
   max_levels: 2
   interp_type: 0
   strong_threshold: 0.57
