@@ -22,7 +22,7 @@ of the build process.
 ### Basic usage
 
 ```
-git clone --recurse-submodules https://github.com/exawind/hypre_app.git
+git clone --recurse-submodules git@github.com:Exawind/hypre.git
 cd hypre_app
 
 # create build directory
