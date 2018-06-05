@@ -17,5 +17,5 @@ make install
 
 
 cd ${BUILD_DIR}
-CC=mpixlc CXX=mpixlC -DHYPRE_DIR=${BUILD_DIR}/install -DCMAKE_CXX_FLAGS="-fopenmp" ../
+CC=mpixlc CXX=mpixlC cmake -DHYPRE_DIR=${BUILD_DIR}/install -DCMAKE_CXX_FLAGS="-fopenmp" ../
 make -j 12

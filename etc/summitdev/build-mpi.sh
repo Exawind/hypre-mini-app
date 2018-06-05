@@ -17,5 +17,5 @@ make install
 
 
 cd ${BUILD_DIR}
-CC=mpixlc CXX=mpixlC -DHYPRE_DIR=${BUILD_DIR}/install ../
+CC=mpixlc CXX=mpixlC cmake -DHYPRE_DIR=${BUILD_DIR}/install ../
 make -j 12

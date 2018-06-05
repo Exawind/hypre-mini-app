@@ -17,6 +17,6 @@ make install
 
 
 cd ${BUILD_DIR}
-CC=mpixlc CXX=mpixlC -DHYPRE_DIR=${BUILD_DIR}/install ../
+CC=mpixlc CXX=mpixlC cmake -DHYPRE_DIR=${BUILD_DIR}/install ../
 cp link_working.txt src/CMakeFiles/hypre_app.dir/
 make -j 12
