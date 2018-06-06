@@ -1,6 +1,6 @@
 
 cmake_minimum_required(VERSION 3.1)
-project(hypre_app CXX C)
+project(hypre_app CXX C CUDA)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 

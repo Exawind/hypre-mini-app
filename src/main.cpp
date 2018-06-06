@@ -4,6 +4,8 @@
 
 #include "yaml-cpp/yaml.h"
 
+#include <cuda_runtime_api.h>
+
 #include <iostream>
 #include <chrono>
 

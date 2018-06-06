@@ -23,6 +23,9 @@ extern "C"
 #include <iostream>
 #include <sstream>
 #include <string.h>
+
+#include <cuda_runtime_api.h>
+
 namespace nalu {
 
   namespace {
@@ -52,6 +55,17 @@ namespace nalu {
   void
     HypreSystem::load()
     {
+
+      cudaError_t ierr;
+      int numGPUs;
+
+      ierr = cudaGetDeviceCount(&numGPUs);
+      if (ierr != cudaSuccess)
+	throw std::runtime_error("Error getting GPU count");
+      ierr = cudaSetDevice(iproc_ % numGPUs);
+      if (ierr != cudaSuccess) 
+ 	throw std::runtime_error("Error setting GPU device for " + std::to_string(iproc_));
+      
       YAML::Node linsys = inpfile_["linear_system"];
       std::string mat_format = get_optional<std::string>(linsys, "type", "matrix_market") ;
 
