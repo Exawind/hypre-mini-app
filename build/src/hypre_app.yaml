@@ -1,0 +1,50 @@
+
+linear_system:
+  type: matrix_market
+  matrix_file: /scratch/sthomas1/matrices/florida/parabolic_fem.mtx
+  rhs_file: /scratch/sthomas1/matrices/florida/parabolic_fem_b.mtx
+  #sln_file: sln.mm
+  write_outputs: false
+
+solver_settings:
+  method: gmres
+  preconditioner: boomeramg
+  tolerance: 1.0e-10
+  max_iterations: 100
+  kspace: 12
+  print_level: 1
+  reuse_preconditioner: false
+
+boomeramg_settings:
+  print_level: 1
+  max_iterations: 1
+  tolerance: 0.0
+  max_iterations: 75
+  kspace: 12
+  output_level: 1
+  write_matrix_files: off
+  output_level: 1
+  coarsen_type: 8
+  interp_type: 6
+  cycle_type:  1
+  #relax_type: 8
+  relax_type: 3
+  relax_order: 1
+  #relax_order: 0
+  num_sweeps: 2
+  #num_sweeps: 1
+  keep_transpose: 1
+  max_levels: 9
+  trunc_factor: 0.25
+  #trunc_factor: 0.1
+  agg_num_levels: 2
+  agg_interp_type: 4
+  agg_pmax_elmts: 2
+  #set_rap_two: 1
+  pmax_elmts: 2
+  strong_threshold: 0.25
+  non_galerkin_tol: 0.05
+  non_galerkin_level_tols:
+    levels: [0, 1, 2 ]
+    tolerances: [0.0, 0.01, 0.01 ]
+

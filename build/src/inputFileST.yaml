@@ -1,0 +1,54 @@
+
+linear_system:
+  type: matrix_market
+  matrix_file:  oversetTIOGAsorted.mm
+  rhs_file:  OversetTIOGAb.mm
+  sln_file: OversetTIOGAsln.mm
+  write_outputs: false
+
+solver_settings:
+  method: cogmres
+  preconditioner: boomeramg
+  tolerance: 1.0e-6
+  max_iterations: 1000
+  kspace: 50
+  print_level: 3
+  reuse_preconditioner: false
+
+boomeramg_settings:
+  print_level: 1
+  max_iterations: 1
+  tolerance: 0.0
+  #coarsen_type: 6
+  #cycle_type: 1
+  #relax_type: 6
+  #relax_order: 1
+  #num_sweeps: 2
+  #max_levels: 2
+  #interp_type: 0
+  #strong_threshold: 0.25
+  coarsen_type: 8
+  interp_type: 6
+  cycle_type:  1
+  relax_type: 8
+  relax_type: 3
+  relax_order: 1
+  #relax_order: 0
+  num_sweeps: 2
+  #num_sweeps: 1
+  keep_transpose: 1
+  max_levels: 9
+  trunc_factor: 0.25
+  #trunc_factor: 0.1
+  agg_num_levels: 2
+  agg_interp_type: 4
+  agg_pmax_elmts: 2
+  #set_rap_two: 1
+  pmax_elmts: 2
+  strong_threshold: 0.57
+  non_galerkin_tol: 0.05
+  non_galerkin_level_tols:
+    levels: [0, 1, 2 ]
+    tolerances: [0.0, 0.01, 0.01 ]
+
+
