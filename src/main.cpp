@@ -32,7 +32,6 @@ void memcheck_hypre(nalu::HypreSystem& linsys, int nsteps)
         const size_t bytes = nalu::current_memory_usage();
         size_t bytesSum = 0.0;
         MPI_Reduce(&bytes, &bytesSum, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
-        bytesSum /= nproc;
         if (iproc == 0) {
             std::cout << "Step: " << std::setw(5) << (i + 1)
                       << "; Memory = " << nalu::human_bytes(bytesSum)
