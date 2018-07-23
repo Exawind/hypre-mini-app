@@ -22,6 +22,8 @@ class HypreSystem
 public:
     HypreSystem(MPI_Comm, YAML::Node&);
 
+    ~HypreSystem();
+
     void load();
 
     void solve();
@@ -34,6 +36,9 @@ public:
 
     //! Summarize timers
     void summarize_timers();
+
+    //! Clean up hypre data structures
+    void teardown();
 
 private:
     HypreSystem() = delete;
@@ -167,6 +172,9 @@ private:
     bool outputSystem_{false};
     bool usePrecond_{true};
     bool needFinalize_{true};
+
+    bool sysInitialized_{false};
+    bool matInitialized_{false};
 };
 
 } // namespace nalu

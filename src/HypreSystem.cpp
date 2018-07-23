@@ -49,6 +49,41 @@ HypreSystem::HypreSystem(
     MPI_Comm_size(comm, &nproc_);
 }
 
+HypreSystem::~HypreSystem()
+{
+    if (matInitialized_) {
+        HYPRE_IJMatrixDestroy(mat_);
+        HYPRE_IJVectorDestroy(rhs_);
+        HYPRE_IJVectorDestroy(sln_);
+        if (checkSolution_) HYPRE_IJVectorDestroy(slnRef_);
+    }
+
+    if (sysInitialized_) {
+        solverDestroyPtr_(solver_);
+        if (usePrecond_) precondDestroyPtr_(precond_);
+    }
+    matInitialized_ = false;
+    sysInitialized_ = false;
+}
+
+void
+HypreSystem::teardown()
+{
+    if (matInitialized_) {
+        HYPRE_IJMatrixDestroy(mat_);
+        HYPRE_IJVectorDestroy(rhs_);
+        HYPRE_IJVectorDestroy(sln_);
+        if (checkSolution_) HYPRE_IJVectorDestroy(slnRef_);
+    }
+
+    if (sysInitialized_) {
+        solverDestroyPtr_(solver_);
+        if (usePrecond_) precondDestroyPtr_(precond_);
+    }
+    matInitialized_ = false;
+    sysInitialized_ = false;
+}
+
 void
 HypreSystem::load()
 {
@@ -91,6 +126,9 @@ HypreSystem::load()
         throw std::runtime_error("Invalid option for solver method provided: "
                                  + method);
     }
+
+    matInitialized_ = true;
+    sysInitialized_ = true;
 }
 
 void HypreSystem::load_matrix_market()
@@ -753,7 +791,7 @@ void HypreSystem::determine_ij_system_sizes(std::string matfile, int nfiles)
 
     auto stop = std::chrono::system_clock::now();
     std::chrono::duration<double> elapsed = stop - start;
-    std::cout << elapsed.count() << " seconds" << std::endl;
+    // std::cout << elapsed.count() << " seconds" << std::endl;
     timers_.emplace_back("Scan matrix", elapsed.count());
 }
 

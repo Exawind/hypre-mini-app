@@ -1,6 +1,7 @@
 
 add_executable(hypre_app
   mmio.c
+  utils.cpp
   HypreSystem.cpp
   main.cpp
   )
