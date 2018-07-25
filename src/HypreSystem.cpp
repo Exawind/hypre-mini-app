@@ -55,7 +55,7 @@ HypreSystem::~HypreSystem()
         HYPRE_IJMatrixDestroy(mat_);
         HYPRE_IJVectorDestroy(rhs_);
         HYPRE_IJVectorDestroy(sln_);
-        if (checkSolution_) HYPRE_IJVectorDestroy(slnRef_);
+        HYPRE_IJVectorDestroy(slnRef_);
     }
 
     if (sysInitialized_) {
@@ -73,7 +73,7 @@ HypreSystem::teardown()
         HYPRE_IJMatrixDestroy(mat_);
         HYPRE_IJVectorDestroy(rhs_);
         HYPRE_IJVectorDestroy(sln_);
-        if (checkSolution_) HYPRE_IJVectorDestroy(slnRef_);
+        HYPRE_IJVectorDestroy(slnRef_);
     }
 
     if (sysInitialized_) {
@@ -632,7 +632,7 @@ void HypreSystem::init_system()
     HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &slnRef_);
     HYPRE_IJVectorSetObjectType(slnRef_, HYPRE_PARCSR);
     HYPRE_IJVectorInitialize(slnRef_);
-    HYPRE_IJVectorGetObject(sln_, (void**)&parSlnRef_);
+    HYPRE_IJVectorGetObject(slnRef_, (void**)&parSlnRef_);
 
     HYPRE_IJMatrixSetConstantValues(mat_, 0.0);
     HYPRE_ParVectorSetConstantValues(parRhs_, 0.0);
@@ -676,7 +676,7 @@ void HypreSystem::finalize_system()
 
     if (checkSolution_) {
         HYPRE_IJVectorAssemble(slnRef_);
-        HYPRE_IJVectorGetObject(sln_, (void**)&(parSlnRef_));
+        HYPRE_IJVectorGetObject(slnRef_, (void**)&(parSlnRef_));
     }
 
     MPI_Barrier(comm_);
