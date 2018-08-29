@@ -4,8 +4,16 @@
 !_TAG_PROGRAM_NAME	Exuberant Ctags	//
 !_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
 !_TAG_PROGRAM_VERSION	5.8	//
+CMAKE_BINARY_DIR	Makefile	/^CMAKE_BINARY_DIR = \/home\/kswirydo\/hypre-mini-app\/src$/;"	m
+CMAKE_BINARY_DIR	deps/yaml-cpp/Makefile	/^CMAKE_BINARY_DIR = \/home\/kswirydo\/hypre-mini-app\/src$/;"	m
+CMAKE_COMMAND	Makefile	/^CMAKE_COMMAND = \/nopt\/nrel\/ecom\/ecp\/base\/c\/spack\/opt\/spack\/linux-centos7-x86_64\/gcc-6.2.0\/cmake-3.9.4-mlfh5h3j5ijmflg6iu4eralfojsh3nv3\/bin\/cmake$/;"	m
+CMAKE_COMMAND	deps/yaml-cpp/Makefile	/^CMAKE_COMMAND = \/nopt\/nrel\/ecom\/ecp\/base\/c\/spack\/opt\/spack\/linux-centos7-x86_64\/gcc-6.2.0\/cmake-3.9.4-mlfh5h3j5ijmflg6iu4eralfojsh3nv3\/bin\/cmake$/;"	m
+CMAKE_SOURCE_DIR	Makefile	/^CMAKE_SOURCE_DIR = \/home\/kswirydo\/hypre-mini-app$/;"	m
+CMAKE_SOURCE_DIR	deps/yaml-cpp/Makefile	/^CMAKE_SOURCE_DIR = \/home\/kswirydo\/hypre-mini-app$/;"	m
+EQUALS	Makefile	/^EQUALS = =$/;"	m
+EQUALS	deps/yaml-cpp/Makefile	/^EQUALS = =$/;"	m
 HYPRESYSTEM_H	HypreSystem.h	2;"	d
-HypreSystem	HypreSystem.cpp	/^HypreSystem::HypreSystem($/;"	f	class:nalu::HypreSystem
+HypreSystem	HypreSystem.cpp	/^  HypreSystem::HypreSystem($/;"	f	class:nalu::HypreSystem
 HypreSystem	HypreSystem.h	/^class HypreSystem$/;"	c	namespace:nalu
 MM_ARRAY_STR	mmio.h	105;"	d
 MM_COMPLEX_STR	mmio.h	109;"	d
@@ -32,20 +40,26 @@ MM_SYMM_STR	mmio.h	113;"	d
 MM_UNSUPPORTED_TYPE	mmio.h	83;"	d
 MM_typecode	mmio.h	/^typedef char MM_typecode[4];$/;"	t
 MatrixMarketBanner	mmio.h	13;"	d
-check_solution	HypreSystem.cpp	/^void HypreSystem::check_solution()$/;"	f	class:nalu::HypreSystem
+RM	Makefile	/^RM = \/nopt\/nrel\/ecom\/ecp\/base\/c\/spack\/opt\/spack\/linux-centos7-x86_64\/gcc-6.2.0\/cmake-3.9.4-mlfh5h3j5ijmflg6iu4eralfojsh3nv3\/bin\/cmake -E remove -f$/;"	m
+RM	deps/yaml-cpp/Makefile	/^RM = \/nopt\/nrel\/ecom\/ecp\/base\/c\/spack\/opt\/spack\/linux-centos7-x86_64\/gcc-6.2.0\/cmake-3.9.4-mlfh5h3j5ijmflg6iu4eralfojsh3nv3\/bin\/cmake -E remove -f$/;"	m
+SHELL	Makefile	/^SHELL = \/bin\/sh$/;"	m
+SHELL	deps/yaml-cpp/Makefile	/^SHELL = \/bin\/sh$/;"	m
+SUFFIXES	Makefile	/^SUFFIXES =$/;"	m
+SUFFIXES	deps/yaml-cpp/Makefile	/^SUFFIXES =$/;"	m
+check_solution	HypreSystem.cpp	/^    void HypreSystem::check_solution()$/;"	f	class:nalu::HypreSystem
 comm_	HypreSystem.h	/^    MPI_Comm comm_;$/;"	m	class:nalu::HypreSystem
-determine_ij_system_sizes	HypreSystem.cpp	/^void HypreSystem::determine_ij_system_sizes(std::string matfile, int nfiles)$/;"	f	class:nalu::HypreSystem
-determine_system_sizes	HypreSystem.cpp	/^void HypreSystem::determine_system_sizes(std::string matfile)$/;"	f	class:nalu::HypreSystem
-finalize_system	HypreSystem.cpp	/^  void HypreSystem::finalize_system()$/;"	f	class:nalu::HypreSystem
-get_optional	HypreSystem.cpp	/^T get_optional(YAML::Node& node, std::string key, T default_value)$/;"	f	namespace:nalu::__anon1
-init_ij_system	HypreSystem.cpp	/^void HypreSystem::init_ij_system()$/;"	f	class:nalu::HypreSystem
-init_system	HypreSystem.cpp	/^void HypreSystem::init_system()$/;"	f	class:nalu::HypreSystem
+determine_ij_system_sizes	HypreSystem.cpp	/^    void HypreSystem::determine_ij_system_sizes(std::string matfile, int nfiles)$/;"	f	class:nalu::HypreSystem
+determine_system_sizes	HypreSystem.cpp	/^    void HypreSystem::determine_system_sizes(std::string matfile)$/;"	f	class:nalu::HypreSystem
+finalize_system	HypreSystem.cpp	/^    void HypreSystem::finalize_system()$/;"	f	class:nalu::HypreSystem
+get_optional	HypreSystem.cpp	/^      T get_optional(YAML::Node& node, std::string key, T default_value)$/;"	f	namespace:nalu::__anon1
+init_ij_system	HypreSystem.cpp	/^    void HypreSystem::init_ij_system()$/;"	f	class:nalu::HypreSystem
+init_system	HypreSystem.cpp	/^    void HypreSystem::init_system()$/;"	f	class:nalu::HypreSystem
 inpfile_	HypreSystem.h	/^    YAML::Node& inpfile_;$/;"	m	class:nalu::HypreSystem
-load	HypreSystem.cpp	/^HypreSystem::load()$/;"	f	class:nalu::HypreSystem
-load_hypre_format	HypreSystem.cpp	/^void HypreSystem::load_hypre_format()$/;"	f	class:nalu::HypreSystem
-load_hypre_native	HypreSystem.cpp	/^void HypreSystem::load_hypre_native()$/;"	f	class:nalu::HypreSystem
-load_matrix_market	HypreSystem.cpp	/^void HypreSystem::load_matrix_market()$/;"	f	class:nalu::HypreSystem
-load_mm_matrix	HypreSystem.cpp	/^void HypreSystem::load_mm_matrix(std::string matfile)$/;"	f	class:nalu::HypreSystem
+load	HypreSystem.cpp	/^    HypreSystem::load()$/;"	f	class:nalu::HypreSystem
+load_hypre_format	HypreSystem.cpp	/^    void HypreSystem::load_hypre_format()$/;"	f	class:nalu::HypreSystem
+load_hypre_native	HypreSystem.cpp	/^    void HypreSystem::load_hypre_native()$/;"	f	class:nalu::HypreSystem
+load_matrix_market	HypreSystem.cpp	/^    void HypreSystem::load_matrix_market()$/;"	f	class:nalu::HypreSystem
+load_mm_matrix	HypreSystem.cpp	/^    void HypreSystem::load_mm_matrix(std::string matfile)$/;"	f	class:nalu::HypreSystem
 main	main.cpp	/^int main(int argc, char* argv[])$/;"	f
 mat_	HypreSystem.h	/^    HYPRE_IJMatrix mat_;$/;"	m	class:nalu::HypreSystem
 mm_clear_typecode	mmio.h	70;"	d
@@ -92,7 +106,7 @@ mm_write_mtx_crd	mmio.c	/^int mm_write_mtx_crd(char fname[], int M, int N, int n
 mm_write_mtx_crd_size	mmio.c	/^int mm_write_mtx_crd_size(FILE *f, int M, int N, int nz)$/;"	f
 nalu	HypreSystem.cpp	/^namespace nalu {$/;"	n	file:
 nalu	HypreSystem.h	/^namespace nalu {$/;"	n
-output_linear_system	HypreSystem.cpp	/^void HypreSystem::output_linear_system()$/;"	f	class:nalu::HypreSystem
+output_linear_system	HypreSystem.cpp	/^    void HypreSystem::output_linear_system()$/;"	f	class:nalu::HypreSystem
 parMat_	HypreSystem.h	/^    HYPRE_ParCSRMatrix parMat_;$/;"	m	class:nalu::HypreSystem
 parRhs_	HypreSystem.h	/^    HYPRE_ParVector parRhs_;$/;"	m	class:nalu::HypreSystem
 parSlnRef_	HypreSystem.h	/^    HYPRE_ParVector parSlnRef_;$/;"	m	class:nalu::HypreSystem
@@ -101,23 +115,24 @@ precondDestroyPtr_	HypreSystem.h	/^    HYPRE_Int (*precondDestroyPtr_)(HYPRE_Sol
 precondSetupPtr_	HypreSystem.h	/^    HYPRE_Int (*precondSetupPtr_)($/;"	m	class:nalu::HypreSystem
 precondSolvePtr_	HypreSystem.h	/^    HYPRE_Int (*precondSolvePtr_)($/;"	m	class:nalu::HypreSystem
 precond_	HypreSystem.h	/^    HYPRE_Solver precond_;$/;"	m	class:nalu::HypreSystem
-read_ij_matrix	HypreSystem.cpp	/^void HypreSystem::read_ij_matrix(std::string matfile, int nfiles)$/;"	f	class:nalu::HypreSystem
-read_ij_vector	HypreSystem.cpp	/^void HypreSystem::read_ij_vector(std::string vecfile, int nfiles, HYPRE_IJVector& vec)$/;"	f	class:nalu::HypreSystem
-read_mm_matrix	HypreSystem.cpp	/^  void HypreSystem::read_mm_matrix(std::string matfile)$/;"	f	class:nalu::HypreSystem
-read_mm_vector	HypreSystem.cpp	/^  void HypreSystem::read_mm_vector(std::string mmfile, HYPRE_IJVector& vec)$/;"	f	class:nalu::HypreSystem
+read_ij_matrix	HypreSystem.cpp	/^    void HypreSystem::read_ij_matrix(std::string matfile, int nfiles)$/;"	f	class:nalu::HypreSystem
+read_ij_vector	HypreSystem.cpp	/^    void HypreSystem::read_ij_vector(std::string vecfile, int nfiles, HYPRE_IJVector& vec)$/;"	f	class:nalu::HypreSystem
+read_mm_matrix	HypreSystem.cpp	/^    void HypreSystem::read_mm_matrix(std::string matfile)$/;"	f	class:nalu::HypreSystem
+read_mm_vector	HypreSystem.cpp	/^    void HypreSystem::read_mm_vector(std::string mmfile, HYPRE_IJVector& vec)$/;"	f	class:nalu::HypreSystem
 rhs_	HypreSystem.h	/^    HYPRE_IJVector rhs_;$/;"	m	class:nalu::HypreSystem
 rowFilled_	HypreSystem.h	/^    std::vector<int> rowFilled_;$/;"	m	class:nalu::HypreSystem
 rowOrder_	HypreSystem.h	/^    std::vector<HYPRE_Int> rowOrder_;$/;"	m	class:nalu::HypreSystem
-setup_boomeramg_precond	HypreSystem.cpp	/^void HypreSystem::setup_boomeramg_precond()$/;"	f	class:nalu::HypreSystem
-setup_boomeramg_solver	HypreSystem.cpp	/^void HypreSystem::setup_boomeramg_solver()$/;"	f	class:nalu::HypreSystem
-setup_gmres	HypreSystem.cpp	/^void HypreSystem::setup_gmres()$/;"	f	class:nalu::HypreSystem
+setup_boomeramg_precond	HypreSystem.cpp	/^    void HypreSystem::setup_boomeramg_precond()$/;"	f	class:nalu::HypreSystem
+setup_boomeramg_solver	HypreSystem.cpp	/^    void HypreSystem::setup_boomeramg_solver()$/;"	f	class:nalu::HypreSystem
+setup_cogmres	HypreSystem.cpp	/^    void HypreSystem::setup_cogmres()$/;"	f	class:nalu::HypreSystem
+setup_gmres	HypreSystem.cpp	/^    void HypreSystem::setup_gmres()$/;"	f	class:nalu::HypreSystem
 slnRef_	HypreSystem.h	/^    HYPRE_IJVector slnRef_;$/;"	m	class:nalu::HypreSystem
 sln_	HypreSystem.h	/^    HYPRE_IJVector sln_;$/;"	m	class:nalu::HypreSystem
-solve	HypreSystem.cpp	/^  void HypreSystem::solve()$/;"	f	class:nalu::HypreSystem
+solve	HypreSystem.cpp	/^    void HypreSystem::solve()$/;"	f	class:nalu::HypreSystem
 solverDestroyPtr_	HypreSystem.h	/^    HYPRE_Int (*solverDestroyPtr_)(HYPRE_Solver);$/;"	m	class:nalu::HypreSystem
 solverPrecondPtr_	HypreSystem.h	/^    HYPRE_Int (*solverPrecondPtr_)($/;"	m	class:nalu::HypreSystem
 solverSetupPtr_	HypreSystem.h	/^    HYPRE_Int (*solverSetupPtr_)($/;"	m	class:nalu::HypreSystem
 solverSolvePtr_	HypreSystem.h	/^    HYPRE_Int (*solverSolvePtr_)($/;"	m	class:nalu::HypreSystem
 solver_	HypreSystem.h	/^    HYPRE_Solver solver_;$/;"	m	class:nalu::HypreSystem
-summarize_timers	HypreSystem.cpp	/^  void HypreSystem::summarize_timers()$/;"	f	class:nalu::HypreSystem
+summarize_timers	HypreSystem.cpp	/^    void HypreSystem::summarize_timers()$/;"	f	class:nalu::HypreSystem
 timers_	HypreSystem.h	/^    std::vector<std::pair<std::string, double>> timers_;$/;"	m	class:nalu::HypreSystem

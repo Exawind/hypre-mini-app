@@ -13,6 +13,7 @@ extern "C"
 {
 #include "mmio.h"
 }
+ #define USING_GPU 1
 
 #include <iomanip>
 #include <algorithm>
@@ -55,7 +56,7 @@ namespace nalu {
   void
     HypreSystem::load()
     {
-
+#if USING_GPU
       cudaError_t ierr;
       int numGPUs;
 
@@ -65,7 +66,7 @@ namespace nalu {
       ierr = cudaSetDevice(iproc_ % numGPUs);
       if (ierr != cudaSuccess) 
  	throw std::runtime_error("Error setting GPU device for " + std::to_string(iproc_));
-      
+#endif      
       YAML::Node linsys = inpfile_["linear_system"];
       std::string mat_format = get_optional<std::string>(linsys, "type", "matrix_market") ;
 
@@ -350,7 +351,9 @@ std::cout<<"METHOD IS "<<method<<'\n';
       HYPRE_ParCSRCOGMRESSetKDim(solver_, get_optional(node, "kspace", 10));
       HYPRE_ParCSRCOGMRESSetPrintLevel(solver_, get_optional(node, "print_level", 4));
 
-      solverDestroyPtr_ = &HYPRE_ParCSRCOGMRESDestroy;
+      HYPRE_ParCSRCOGMRESSetGSoption(solver_, get_optional(node, "GSoption", 0));
+      
+solverDestroyPtr_ = &HYPRE_ParCSRCOGMRESDestroy;
       solverSetupPtr_ = &HYPRE_ParCSRCOGMRESSetup;
       solverPrecondPtr_ = &HYPRE_ParCSRCOGMRESSetPrecond;
       solverSolvePtr_ = &HYPRE_ParCSRCOGMRESSolve;
