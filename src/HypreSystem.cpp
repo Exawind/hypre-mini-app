@@ -380,13 +380,16 @@ solverDestroyPtr_ = &HYPRE_ParCSRCOGMRESDestroy;
     {
       finalize_system();
 
+printf("system finalized\n");
       auto start = std::chrono::system_clock::now();
       if (usePrecond_) {
         solverPrecondPtr_(
             solver_, precondSolvePtr_, precondSetupPtr_, precond_);
       }
+printf("about to setup solver \n");
       solverSetupPtr_(solver_, parMat_, parRhs_, parSln_);
-      MPI_Barrier(comm_);
+printf("solver setup done\n");      
+MPI_Barrier(comm_);
       auto stop1 = std::chrono::system_clock::now();
       std::chrono::duration<double> setup = stop1 - start;
       solverSolvePtr_(solver_, parMat_, parRhs_, parSln_);
@@ -556,7 +559,6 @@ solverDestroyPtr_ = &HYPRE_ParCSRCOGMRESDestroy;
         }
         fclose(fh);
       }
-
       MPI_Barrier(comm_);
       auto stop = std::chrono::system_clock::now();
       std::chrono::duration<double> elapsed = stop - start;
@@ -637,11 +639,12 @@ solverDestroyPtr_ = &HYPRE_ParCSRCOGMRESDestroy;
       HYPRE_IJVectorInitialize(slnRef_);
       HYPRE_IJVectorGetObject(sln_, (void**)&parSlnRef_);
 
-      HYPRE_IJMatrixSetConstantValues(mat_, 0.0);
+      //HYPRE_IJMatrixSetConstantValues(mat_, 0.0);
       HYPRE_ParVectorSetConstantValues(parRhs_, 0.0);
       HYPRE_ParVectorSetConstantValues(parSln_, 0.0);
       HYPRE_ParVectorSetConstantValues(parSlnRef_, 0.0);
 
+     HYPRE_IJMatrixAssemble(mat_);
       MPI_Barrier(comm_);
       if (iproc_ == 0) {
         auto stop = std::chrono::system_clock::now();
@@ -670,26 +673,43 @@ solverDestroyPtr_ = &HYPRE_ParCSRCOGMRESDestroy;
 
       }
 
-      HYPRE_IJMatrixAssemble(mat_);
+      HYPRE_IJVectorCopyDataCPUtoGPU(rhs_);
+      MPI_Barrier(comm_);
+      HYPRE_IJMatrixCopyCPUtoGPU(mat_);
+      MPI_Barrier(comm_);
+    // HYPRE_IJMatrixAssemble(mat_);
       HYPRE_IJVectorAssemble(rhs_);
+
+      printf("b: copying the data to the GPU\n");
+printf("copied!\n");   
       HYPRE_IJVectorAssemble(sln_);
-      HYPRE_IJMatrixGetObject(mat_, (void**)&parMat_);
+printf("solution assemled\n");
+     HYPRE_IJMatrixGetObject(mat_, (void**)&parMat_);
       HYPRE_IJVectorGetObject(rhs_, (void**)&(parRhs_));
       HYPRE_IJVectorGetObject(sln_, (void**)&(parSln_));
 
+//printf("objects passed\n");
       if (checkSolution_) {
-        HYPRE_IJVectorAssemble(slnRef_);
+      HYPRE_IJVectorAssemble(slnRef_);
         HYPRE_IJVectorGetObject(sln_, (void**)&(parSlnRef_));
       }
 
       MPI_Barrier(comm_);
+
+printf("behind barrier\n");
       if (iproc_ == 0) {
+
+printf("about to stop\n");
         auto stop = std::chrono::system_clock::now();
         std::chrono::duration<double> elapsed = stop - start;
         std::cout << elapsed.count() << " seconds" << std::endl;
 
+printf("time written\n");
         timers_.emplace_back("Finalize system", elapsed.count());
+printf("timers updated\n");
       }
+
+printf("timers done \n");
     }
 
     void HypreSystem::read_mm_matrix(std::string matfile)
