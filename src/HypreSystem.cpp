@@ -644,7 +644,7 @@ MPI_Barrier(comm_);
       HYPRE_ParVectorSetConstantValues(parSln_, 0.0);
       HYPRE_ParVectorSetConstantValues(parSlnRef_, 0.0);
 
-     HYPRE_IJMatrixAssemble(mat_);
+  //   HYPRE_IJMatrixAssemble(mat_);
       MPI_Barrier(comm_);
       if (iproc_ == 0) {
         auto stop = std::chrono::system_clock::now();
@@ -674,12 +674,12 @@ MPI_Barrier(comm_);
       }
 
       HYPRE_IJVectorCopyDataCPUtoGPU(rhs_);
+      HYPRE_IJMatrixAssemble(mat_);
+      HYPRE_IJVectorAssemble(rhs_);
+
       MPI_Barrier(comm_);
       HYPRE_IJMatrixCopyCPUtoGPU(mat_);
       MPI_Barrier(comm_);
-    // HYPRE_IJMatrixAssemble(mat_);
-      HYPRE_IJVectorAssemble(rhs_);
-
       printf("b: copying the data to the GPU\n");
 printf("copied!\n");   
       HYPRE_IJVectorAssemble(sln_);
