@@ -4,7 +4,21 @@ add_executable(hypre_app
   HypreSystem.cpp
   main.cpp
   )
-target_link_libraries(hypre_app ${HYPRE_LIBRARIES} yaml-cpp ${MPI_CXX_LIBRARIES} ${MPI_C_LIBRARIES})
+target_link_libraries(hypre_app
+  ${HYPRE_LIBRARIES}
+  yaml-cpp
+  ${MPI_CXX_LIBRARIES}
+  ${MPI_C_LIBRARIES}
+  ${CUDA_cusparse_LIBRARY}
+  $(CUDA_LIBRARIES)
+  ${CUDA_CUBLAS_LIBRARIES}
+  ${CUDA_NVTX_LIBRARY}
+  )
+
+set_target_properties(hypre_app PROPERTIES
+  POSITION_INDEPENDENT_CODE ON
+  CUDA_SEPARABLE_COMPILATION ON
+  )
 
 if(MPI_COMPILE_FLAGS)
   set_target_properties(hypre_app PROPERTIES
