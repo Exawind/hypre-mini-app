@@ -8,9 +8,6 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS FALSE)
 
-set(CMAKE_CUDA_STANDARD 11)
-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-
 find_package(MPI REQUIRED)
 include_directories(SYSTEM ${MPI_C_INCLUDE_PATH})
 include_directories(SYSTEM ${MPI_CXX_INCLUDE_PATH})
@@ -30,5 +27,6 @@ set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Build contrib")
 
 add_subdirectory(deps/yaml-cpp)
 
+set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "--relocatable-device-code=true ")
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/deps/yaml-cpp/include/")
 add_subdirectory(src)

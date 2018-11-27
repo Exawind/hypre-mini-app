@@ -10,13 +10,12 @@ target_link_libraries(hypre_app
   ${MPI_CXX_LIBRARIES}
   ${MPI_C_LIBRARIES}
   ${CUDA_cusparse_LIBRARY}
-  $(CUDA_LIBRARIES)
+  ${CUDA_LIBRARIES}
   ${CUDA_CUBLAS_LIBRARIES}
   ${CUDA_NVTX_LIBRARY}
   )
 
 set_target_properties(hypre_app PROPERTIES
-  POSITION_INDEPENDENT_CODE ON
   CUDA_SEPARABLE_COMPILATION ON
   )
 
