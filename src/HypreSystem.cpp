@@ -60,7 +60,8 @@ namespace nalu {
       int numGPUs;
 
       ierr = cudaGetDeviceCount(&numGPUs);
-      if (ierr != cudaSuccess)
+printf("%d GPUs available!\n", numGPUs);      
+if (ierr != cudaSuccess)
 	throw std::runtime_error("Error getting GPU count");
       ierr = cudaSetDevice(iproc_ % numGPUs);
       if (ierr != cudaSuccess) 
@@ -188,7 +189,8 @@ std::cout<<"METHOD IS "<<method<<'\n';
       // Initialize the solution vector
       HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &sln_);
       HYPRE_IJVectorSetObjectType(sln_, HYPRE_PARCSR);
-      HYPRE_IJVectorInitialize(sln_);
+printf("init solution \n");      
+HYPRE_IJVectorInitialize(sln_);
       HYPRE_IJVectorGetObject(sln_, (void**)&parSln_);
       HYPRE_ParVectorSetConstantValues(parSln_, 0.0);
 
@@ -349,7 +351,7 @@ std::cout<<"METHOD IS "<<method<<'\n';
       HYPRE_ParCSRCOGMRESSetMaxIter(solver_, get_optional(node, "max_iterations", 1000));
       HYPRE_ParCSRCOGMRESSetKDim(solver_, get_optional(node, "kspace", 10));
       HYPRE_ParCSRCOGMRESSetPrintLevel(solver_, get_optional(node, "print_level", 4));
-
+ HYPRE_ParCSRCOGMRESSetGSoption(solver_, get_optional(node, "GSoption", 0));
       solverDestroyPtr_ = &HYPRE_ParCSRCOGMRESDestroy;
       solverSetupPtr_ = &HYPRE_ParCSRCOGMRESSetup;
       solverPrecondPtr_ = &HYPRE_ParCSRCOGMRESSetPrecond;
@@ -383,7 +385,8 @@ std::cout<<"METHOD IS "<<method<<'\n';
             solver_, precondSolvePtr_, precondSetupPtr_, precond_);
       }
       solverSetupPtr_(solver_, parMat_, parRhs_, parSln_);
-      MPI_Barrier(comm_);
+printf("solver setup done \n");      
+MPI_Barrier(comm_);
       auto stop1 = std::chrono::system_clock::now();
       std::chrono::duration<double> setup = stop1 - start;
       solverSolvePtr_(solver_, parMat_, parRhs_, parSln_);
@@ -397,7 +400,7 @@ std::cout<<"METHOD IS "<<method<<'\n';
       }
 
       solveComplete_ = true;
-    }
+   }
 
     void HypreSystem::output_linear_system()
     {
@@ -428,7 +431,7 @@ std::cout<<"METHOD IS "<<method<<'\n';
 
       if (!solveComplete_)
         throw std::runtime_error("Solve was not called before check_solution");
-
+ HYPRE_IJVectorCopyDataGPUtoCPU(sln_);
       auto start = std::chrono::system_clock::now();
       double sol1, sol2, diff;
       double maxerr = std::numeric_limits<double>::lowest();
@@ -621,7 +624,9 @@ std::cout<<"METHOD IS "<<method<<'\n';
 
       HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &rhs_);
       HYPRE_IJVectorSetObjectType(rhs_, HYPRE_PARCSR);
-      HYPRE_IJVectorInitialize(rhs_);
+ 
+printf("init rhs\n");      
+     HYPRE_IJVectorInitialize(rhs_);
       HYPRE_IJVectorGetObject(rhs_, (void**)&parRhs_);
 
       HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &sln_);
@@ -669,7 +674,17 @@ std::cout<<"METHOD IS "<<method<<'\n';
 
       HYPRE_IJMatrixAssemble(mat_);
       HYPRE_IJVectorAssemble(rhs_);
-      HYPRE_IJVectorAssemble(sln_);
+ MPI_Barrier(comm_);
+    HYPRE_IJMatrixCopyCPUtoGPU(mat_);
+    MPI_Barrier(comm_);
+     
+
+
+ HYPRE_IJVectorAssemble(sln_);
+   HYPRE_IJVectorCopyDataCPUtoGPU(rhs_);
+    HYPRE_IJVectorCopyDataCPUtoGPU(sln_);
+
+
       HYPRE_IJMatrixGetObject(mat_, (void**)&parMat_);
       HYPRE_IJVectorGetObject(rhs_, (void**)&(parRhs_));
       HYPRE_IJVectorGetObject(sln_, (void**)&(parSln_));
