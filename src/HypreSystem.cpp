@@ -58,12 +58,17 @@ namespace nalu {
 
       cudaError_t ierr;
       int numGPUs;
-
+int modeK;
       ierr = cudaGetDeviceCount(&numGPUs);
 printf("%d GPUs available!\n", numGPUs);      
+cudaDeviceGetAttribute (&modeK, cudaDevAttrConcurrentManagedAccess,iproc_%numGPUs);
+printf("managed access on device %d? %d\n", iproc_ %numGPUs, modeK);
+HYPRE_DEVICE = iproc_%numGPUs;
+HYPRE_DEVICE_COUNT = numGPUs;
 if (ierr != cudaSuccess)
 	throw std::runtime_error("Error getting GPU count");
       ierr = cudaSetDevice(iproc_ % numGPUs);
+printf("Hi i am rank %d Setting my GPUs to %d !\n",iproc_, iproc_%numGPUs);      
       if (ierr != cudaSuccess) 
  	throw std::runtime_error("Error setting GPU device for " + std::to_string(iproc_));
       
@@ -108,7 +113,8 @@ std::cout<<"METHOD IS "<<method<<'\n';
       else if (!method.compare("cogmres")){
         printf("using CO-GMRES solver\n");       
         setup_cogmres();
-      }
+printf("done with setup \n");      
+}
       else {
         throw std::runtime_error("Invalid option for solver method provided: "
             + method);
@@ -189,7 +195,7 @@ std::cout<<"METHOD IS "<<method<<'\n';
       // Initialize the solution vector
       HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &sln_);
       HYPRE_IJVectorSetObjectType(sln_, HYPRE_PARCSR);
-printf("init solution \n");      
+//printf("init solution \n");      
 HYPRE_IJVectorInitialize(sln_);
       HYPRE_IJVectorGetObject(sln_, (void**)&parSln_);
       HYPRE_ParVectorSetConstantValues(parSln_, 0.0);
@@ -385,7 +391,7 @@ HYPRE_IJVectorInitialize(sln_);
             solver_, precondSolvePtr_, precondSetupPtr_, precond_);
       }
       solverSetupPtr_(solver_, parMat_, parRhs_, parSln_);
-printf("solver setup done \n");      
+//printf("solver setup done \n");      
 MPI_Barrier(comm_);
       auto stop1 = std::chrono::system_clock::now();
       std::chrono::duration<double> setup = stop1 - start;
@@ -529,7 +535,7 @@ MPI_Barrier(comm_);
       HYPRE_Int ilower, iupper;
       HYPRE_Int irow;
       double value;
-      int ret;
+      //int ret;
 
       for (int ii=iproc_; ii < nfiles; ii+=nproc_) {
         FILE* fh;
@@ -548,9 +554,9 @@ MPI_Barrier(comm_);
         HYPRE_Int numrows = (iupper - ilower) + 1;
         for (HYPRE_Int j=0; j < numrows; j++) {
 #ifdef HYPRE_BIGINT
-          ret = fscanf(fh, "%lld%*[ \t]%le\n", &irow, &value);
+          fscanf(fh, "%lld%*[ \t]%le\n", &irow, &value);
 #else
-          ret = fscanf(fh, "%d%*[ \t]%le\n", &irow, &value);
+          fscanf(fh, "%d%*[ \t]%le\n", &irow, &value);
 #endif
           HYPRE_IJVectorAddToValues(vec, 1, &irow, &value);
         }
@@ -625,7 +631,7 @@ MPI_Barrier(comm_);
       HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &rhs_);
       HYPRE_IJVectorSetObjectType(rhs_, HYPRE_PARCSR);
  
-printf("init rhs\n");      
+//printf("init rhs\n");      
      HYPRE_IJVectorInitialize(rhs_);
       HYPRE_IJVectorGetObject(rhs_, (void**)&parRhs_);
 

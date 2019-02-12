@@ -14,7 +14,7 @@ int main(int argc, char* argv[])
     int iproc;
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &iproc);
-
+//HYPRE_Init(argc, argv);
     auto start = std::chrono::system_clock::now();
 
 
