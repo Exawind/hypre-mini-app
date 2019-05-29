@@ -10,6 +10,7 @@
 #include "HYPRE.h"
 #include "HYPRE_config.h"
 
+#define debugMode 0
 extern "C"
 {
 #include "mmio.h"
@@ -118,7 +119,7 @@ namespace nalu {
       else if (!method.compare("cogmres")){
 	printf("using CO-GMRES solver\n");       
 	setup_cogmres();
-	printf("done with setup \n");      
+	//printf("done with setup \n");      
       }
       else {
 	throw std::runtime_error("Invalid option for solver method provided: "
@@ -209,16 +210,21 @@ namespace nalu {
     for (int i=0; i<spaceSize-1; ++i){
       x[0] = R[i*(spaceSize+1)+spaceSize];
       x[1] = R[i*(spaceSize+1)+spaceSize+1];
-
+#if debugMode
       printf("BEFORE ROT x[0] = %16.15f x[1] = %16.15f\n", x[0], x[1]);
+#endif 
       planeRot(x, G);
+#if debugMode
       printf("G matrix %f %f %f %f x[0] = %16.15f x[1] = %16.15f\n", G[0], G[1], G[2], G[3], x[0], x[1]);
+#endif
       //update R
 
       for (int j=1; j<spaceSize; ++j){ 
 	double aux = R[j*spaceSize+i ];
 	double aux2 = R[j*spaceSize+i+1 ];
+#if debugMode
 	printf("Will be changing %f %f \n", R[j*spaceSize+i ], R[j*spaceSize+i+1 ]);      
+#endif
 	R[j*spaceSize+i ] = G[0]*aux+ G[2]*aux2;
 	R[j*spaceSize+i+1] = G[1]*aux+G[3]*aux2;
       }
@@ -245,7 +251,7 @@ namespace nalu {
 	R[(i-1)*spaceSize+j] = 0.0f;
       }
     }
-
+#if debugMode
     for (int i=0; i<spaceSize; ++i){
       for (int j=0; j<spaceSize; ++j){
 	printf(" %16.16f ", R[j*spaceSize+i]);
@@ -253,7 +259,7 @@ namespace nalu {
       printf("\n");
 
     }
-
+#endif
 
 
   }
@@ -261,13 +267,15 @@ namespace nalu {
   void HypreSystem::createProjectedInitGuess(int i){
     /*
      * */
+#if debugMode
     printf("SPACE SIZE %d \n", i);
+#endif
     if (i<1){
       // we don't have a space yet
       // FOR LEFT PRECON ONLY!!!
       // rhs =  AMGVcycle(L,bn,1);
       //take 0s as init guess (std)
-
+printf("I IS SMALLER THAN 1 \n");
       HYPRE_ParVectorSetConstantValues(parSln_, 0.0);
 
       //parY = parY -R()*Q;
@@ -277,6 +285,7 @@ namespace nalu {
       parOldRhs_ =(hypre_ParVector*)  hypre_ParKrylovCreateVector((hypre_ParVector *)parSln_);//another tmp
     }
     else {
+
       /*
 	 alpha = R(1:d,d);
 	 bnt = bn - Q(:, 1:d)*alpha;
@@ -292,14 +301,15 @@ namespace nalu {
       rhs = AMGVcycle(L,bn,1);      
 
 */
-#if 1
+
       //parSln = 0s
       HYPRE_ParVectorSetConstantValues(parSln_, 0.0);
       //parY = bn
+#if 1
       hypre_ParKrylovCopyVectorOneOfMult(parRhs_, 0,
 	  parY_, 0 );
       //bnt: = parY = parY -R()*Q;
-
+#if debugMode
       printf("START: IP of  parY (=rhs) with itself %16.16f \n", hypre_ParKrylovInnerProdOneOfMult(parY_, 0,
 	    parY_, 0 ));
       printf("START: IP of  sln with itself (should be ZERO) %16.16f \n", hypre_ParKrylovInnerProdOneOfMult(parSln_, 0,
@@ -310,6 +320,7 @@ namespace nalu {
       for (int kk=0; kk<currentSpaceSize; ++kk){
 	printf("%16.16f \n", R[spaceSize*(currentSpaceSize-1)+kk]);
       }
+#endif
       //GPUtmp = alpha (alpha = R(1:d, d))
       cudaMemcpy ( GPUtmp, &R[spaceSize*(currentSpaceSize-1)],
 	  currentSpaceSize*sizeof(HYPRE_Real),
@@ -320,9 +331,10 @@ namespace nalu {
 	  projectionSpace,currentSpaceSize,
 	  parY_,
 	  0);
+#if debugMode
       printf("IP of parY with itself %16.16f \n", hypre_ParKrylovInnerProdOneOfMult(parY_, 0,
 	    parY_, 0 ));
-
+#endif
 
 
       //parSln = 0 - U*alpha
@@ -334,9 +346,10 @@ namespace nalu {
 
       hypre_ParKrylovScaleVectorOneOfMult(-1.0f,parSln_, 0 );
 
+#if debugMode
       printf("AGAIN: IP of parY with itself %16.16fi and parSln with itself %16.16f \n", hypre_ParKrylovInnerProdOneOfMult(parY_, 0,
-	    parY_, 0 ), hypre_ParKrylovInnerProdOneOfMult(parSln_, 0,
-	      parSln_, 0 ));
+	    parY_, 0 ), hypre_ParKrylovInnerProdOneOfMult(parSln_, 0,parSln_, 0 ));
+#endif
       //apply AMG V cycle to bnt
 
       //important
@@ -379,11 +392,11 @@ namespace nalu {
 	  0);
 
 #if 0
-// one more Richardson
-//parY = bn
+      // one more Richardson
+      //parY = bn
       hypre_ParKrylovCopyVectorOneOfMult(parRhs_, 0,
 	  parY_, 0 );
-//parY = parY-A*Sln 
+      //parY = parY-A*Sln 
       hypre_ParKrylovMatvecMult(NULL,
 	  -1.0f,
 	  parMat_,
@@ -391,7 +404,7 @@ namespace nalu {
 	  0,
 	  1.0f,
 	  parY_, 0);
-//
+      //
       //parZ = AMGVcycle(parY)
       hypre_ParKrylovUpdateVectorCPU(parY_);
       hypre_ParKrylovClearVector(parZ_);
@@ -407,17 +420,18 @@ namespace nalu {
 
       hypre_ParKrylovUpdateVectorCPU(parSln_);
 
-
+#if debugMode
       printf("END IP of parSln with itself %16.16f \n", hypre_ParKrylovInnerProdOneOfMult(parSln_, 0,
 	    parSln_, 0 ));
-#endif    
-}
+#endif
+#endif
+    }
 
   }
 
 
   void HypreSystem::projectionSpaceUpdate(int i){
-
+    auto start = std::chrono::system_clock::now();
 
     // need to create matvec
 
@@ -441,29 +455,38 @@ namespace nalu {
       R[0] = hypre_ParKrylovInnerProdOneOfMult(projectionSpace, 0,
 	  projectionSpace, 0 );
       R[0] = sqrt(R[0]);
+
+      double tt = 1.0f/R[0];
+#if debugMode
       printf("R of zero: R[0] = %f \n ", R[0]);
 
       printf("VERY BEFORE Norm of the first vector %f \n", hypre_ParKrylovInnerProdOneOfMult(projectionSpace, 0,projectionSpace, 0));
       //scale both
-      double tt = 1.0f/R[0];
 
       printf("BEFORE NORM of the solution %f\n", hypre_ParKrylovInnerProdOneOfMult(parSln_, 0,parSln_, 0));
       printf("BEFORE NORM of the first vector Q(0) %f NORM of U(0) %f\n", hypre_ParKrylovInnerProdOneOfMult(projectionSpace, 0,projectionSpace, 0),  hypre_ParKrylovInnerProdOneOfMult(projectionSpaceRaw, 0,projectionSpaceRaw, 0));
+#endif     
       hypre_ParKrylovScaleVectorOneOfMult(tt,projectionSpace, 0 ); 
       hypre_ParKrylovScaleVectorOneOfMult(tt,projectionSpaceRaw, 0 ); 
+#if debugMode    
       printf("NORM of the first vector Q(0) %f NORM of U(0) %f\n", hypre_ParKrylovInnerProdOneOfMult(projectionSpace, 0,projectionSpace, 0),  hypre_ParKrylovInnerProdOneOfMult(projectionSpaceRaw, 0,projectionSpaceRaw, 0));
+#endif    
       currentSpaceSize = 1;
     }
     else{
       // the space exists 
       //check if we need to drop
       if (i>spaceSize){
+#if debugMode    
 	printf("dropping a column\n");
+#endif	
 	dropFirstColumn();
 	currentSpaceSize = spaceSize-1;
       }
 
+#if debugMode    
       printf("ADDING a vector, spaceSize %d currentSpaceSize %d i %d \n", spaceSize, currentSpaceSize, i);
+#endif      
       //projectionSpace(currentSpaceSize) = A*parSln_    
       hypre_ParKrylovMatvecMult(NULL,
 	  1.0,
@@ -473,7 +496,9 @@ namespace nalu {
 	  0.0f,
 	  projectionSpace, currentSpaceSize);
 
+#if debugMode    
       printf("initial Norm of the vector %d:  %f \n",currentSpaceSize, hypre_ParKrylovInnerProdOneOfMult(projectionSpace, currentSpaceSize,projectionSpace, currentSpaceSize));
+#endif
       //U(currenSpaceSize) = sln
       hypre_ParKrylovCopyVectorOneOfMult(parSln_, 0,
 	  projectionSpaceRaw, currentSpaceSize);
@@ -491,10 +516,11 @@ namespace nalu {
 	  projectionSpace,currentSpaceSize,
 	  projectionSpace,
 	  currentSpaceSize);
-
+#if debugMode
       for (int jj = 0; jj<currentSpaceSize; ++jj){
 	printf("BEFORE REORTH R[%d, %d] = %f \n", jj, currentSpaceSize, R[spaceSize*currentSpaceSize+jj]);
       }
+#endif
       //next, reorth
 
       hypre_ParKrylovMassInnerProdMult(projectionSpace,currentSpaceSize,projectionSpace, currentSpaceSize, GPUtmp);
@@ -507,12 +533,15 @@ namespace nalu {
       for (int j=0; j<currentSpaceSize; j++){
 	HYPRE_Int id = currentSpaceSize*spaceSize+j;
 	R[id]+=CPUtmp[j];
+#if debugMode    
 	printf("adding %16.16f to R[ %d * %d + %d] \n", CPUtmp[j], currentSpaceSize, spaceSize, j);       
+#endif
       }
-
+#if debigMode
       for (int jj = 0; jj<currentSpaceSize; ++jj){
 	printf("AFTER R[%d, %d] = %f \n", jj, currentSpaceSize, R[spaceSize*currentSpaceSize+jj]);
       }
+#endif
       hypre_ParKrylovMassAxpyMult(GPUtmp,
 	  projectionSpace,currentSpaceSize,
 	  projectionSpace,
@@ -522,24 +551,32 @@ namespace nalu {
       double t = hypre_ParKrylovInnerProdOneOfMult(projectionSpace, currentSpaceSize,projectionSpace, currentSpaceSize);
       t = sqrt(t);
       R[spaceSize*currentSpaceSize+currentSpaceSize] = t;
+#if debugMode    
       printf("t = %f R of not zero i. e R[%d, %d] = %f \n",t, currentSpaceSize, currentSpaceSize, R[spaceSize*currentSpaceSize+ currentSpaceSize]);
+#endif
       if (t!=0){
 
 	t = 1.0/t;
 
+#if debugMode    
 	printf("NORM sq OF Q(%d) BEFORR %16.16f t = %16.16f \n",currentSpaceSize, hypre_ParKrylovInnerProdOneOfMult(projectionSpace, currentSpaceSize,
 	      projectionSpace, currentSpaceSize ), t);
+#endif
 	hypre_ParKrylovScaleVectorOneOfMult(t,
 	    projectionSpace, currentSpaceSize);
 
+#if debugMode    
 	printf("NORM of the solution %f\n", hypre_ParKrylovInnerProdOneOfMult(parSln_, 0,parSln_, 0));
 	printf("NORM sq OF Q(%d) %16.16f \n",currentSpaceSize, hypre_ParKrylovInnerProdOneOfMult(projectionSpace, currentSpaceSize,
 	      projectionSpace, currentSpaceSize ));
+#endif
       }
       if (currentSpaceSize>1){
 	for (int kk=1; kk<currentSpaceSize; kk++){
+#if debugMode    
 	  printf("IP Q(%d)^TQ(%d) = %16.16f \n",currentSpaceSize,kk, hypre_ParKrylovInnerProdOneOfMult(projectionSpace, currentSpaceSize,
 		projectionSpace, kk));
+#endif
 	}
       }
       //update U
@@ -556,16 +593,28 @@ namespace nalu {
 	  projectionSpaceRaw,
 	  currentSpaceSize);
       if(t!=0)
-      {printf("NORM sq OF U(%d) BEFORE %16.16f t = %16.16f \n",currentSpaceSize, hypre_ParKrylovInnerProdOneOfMult(projectionSpaceRaw, currentSpaceSize,
-	    projectionSpaceRaw, currentSpaceSize ), t);
-      hypre_ParKrylovScaleVectorOneOfMult(t,
-	  projectionSpaceRaw, currentSpaceSize);
+      {
+#if debugMode    
+	printf("NORM sq OF U(%d) BEFORE %16.16f t = %16.16f \n",currentSpaceSize, hypre_ParKrylovInnerProdOneOfMult(projectionSpaceRaw, currentSpaceSize,    projectionSpaceRaw, currentSpaceSize ), t);
+#endif     
+	hypre_ParKrylovScaleVectorOneOfMult(t,
+	    projectionSpaceRaw, currentSpaceSize);
       }
+
+#if debugMode    
       printf("NORM sq OF U(%d) %16.16f \n",currentSpaceSize, hypre_ParKrylovInnerProdOneOfMult(projectionSpaceRaw, currentSpaceSize,
 	    projectionSpaceRaw, currentSpaceSize ));
+#endif
       currentSpaceSize ++;
     }
 
+    MPI_Barrier(comm_);
+    auto stop1 = std::chrono::system_clock::now(); 
+    std::chrono::duration<double> solve = stop1 - start;
+
+    if (iproc_ == 0) {
+      timers_.emplace_back("Space Update", solve.count());
+    }
   }
 
   void
@@ -630,7 +679,7 @@ namespace nalu {
       else if (!method.compare("cogmres")){
 	printf("using CO-GMRES solver\n");       
 	setup_cogmres();
-	printf("done with setup \n");      
+	//printf("done with setup \n");      
       }
       else {
 	throw std::runtime_error("Invalid option for solver method provided: "
@@ -713,7 +762,7 @@ namespace nalu {
 	std::string matfile_one = matfile + std::to_string(i) + ".mm";
 	std::string rhsfile_one = rhsfile + std::to_string(i) + ".mm";
 
-	std::cout<<"Trying to open "<<matfile_one<<"  and  "<<rhsfile_one;      
+	//	std::cout<<"Trying to open "<<matfile_one<<"  and  "<<rhsfile_one;      
 	determine_ij_system_sizes(matfile_one, nfiles);
 	init_ij_system();
 	read_ij_matrix(matfile_one, nfiles);
@@ -752,9 +801,14 @@ namespace nalu {
       // Initialize the solution vector
       HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &sln_);
       HYPRE_IJVectorSetObjectType(sln_, HYPRE_PARCSR);
-      //printf("init solution \n");      
+
+#if debugMode    
+      printf("init solution \n");      
+#endif
       HYPRE_IJVectorInitialize(sln_);
+#if debugMode    
       printf("initializing sln_ 2\n");
+#endif
       HYPRE_IJVectorGetObject(sln_, (void**)&parSln_);
       HYPRE_ParVectorSetConstantValues(parSln_, 0.0);
 
@@ -791,7 +845,7 @@ namespace nalu {
       std::string matfile_one = matfile + std::to_string(i) + ".mm";
       std::string rhsfile_one = rhsfile + std::to_string(i) + ".mm";
 
-      std::cout<<"Trying to open "<<matfile_one<<"  and  "<<rhsfile_one;      
+      //    std::cout<<"Trying to open "<<matfile_one<<"  and  "<<rhsfile_one;      
       HYPRE_IJMatrixRead(matfile_one.c_str(), comm_, HYPRE_PARCSR, &mat_);
       HYPRE_IJVectorRead(rhsfile_one.c_str(), comm_, HYPRE_PARCSR, &rhs_);
 
@@ -805,9 +859,14 @@ namespace nalu {
       // Initialize the solution vector
       HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &sln_);
       HYPRE_IJVectorSetObjectType(sln_, HYPRE_PARCSR);
-      //printf("init solution \n");      
+
+#if debugMode    
+      printf("init solution \n");      
+#endif      
       HYPRE_IJVectorInitialize(sln_);
+#if debugMode          
       printf("initializing sln_ 3\n");
+#endif
       HYPRE_IJVectorGetObject(sln_, (void**)&parSln_);
       HYPRE_ParVectorSetConstantValues(parSln_, 0.0);
 
@@ -991,51 +1050,67 @@ namespace nalu {
     }
 
 
-    void HypreSystem::solve()
+    void HypreSystem::solve2()
     {
       finalize_system();
 
+#if debugMode    
       printf("system has been finalized \n");
-
+#endif
       auto start = std::chrono::system_clock::now();
       if (usePrecond_) {
 	solverPrecondPtr_(
 	    solver_, precondSolvePtr_, precondSetupPtr_, precond_);
       }
+#if debugMode    
       printf("starting solver setup \n");
+#endif      
       //works ok if this command is never called      
       solverSetupPtr_(solver_, parMat_, parRhs_, parSln_);
+#if debugMode    
       printf("solver setup done \n");
-      createProjectedInitGuess(currentSpaceSize);
-      //printf("solver setup done \n");      
+#endif      
       MPI_Barrier(comm_);
       auto stop1 = std::chrono::system_clock::now();
       std::chrono::duration<double> setup = stop1 - start;
 
+      createProjectedInitGuess(currentSpaceSize);
+      //printf("solver setup done \n");      
+
+#if 1      
+      auto stop3 = std::chrono::system_clock::now();
+      std::chrono::duration<double> initGuessUpdate = stop3 - stop1;
+
+      if (iproc_ == 0) {
+	timers_.emplace_back("Init Guess Update", initGuessUpdate.count());
+      }
+#endif
 
       //For left precon
-      /*
+      /* DONT DO ANYTHING HERE, GMRES WOULD DO IT FOR YOu
 	 HYPRE_Solver solver,
 	 HYPRE_ParCSRMatrix A,
 	 HYPRE_ParVector b,
 	 HYPRE_ParVector x
        * */
 
+#if debugMode    
       printf("BEFORE applying precon to RHS %16.16f \n", hypre_ParKrylovInnerProdOneOfMult(parRhs_, 0,
 	    parRhs_, 0 ));
-     
- hypre_ParKrylovClearVector(parY_);
-      precondSolvePtr_(precond_, parMat_, parRhs_, parY_);
+#endif     
+      //   hypre_ParKrylovClearVector(parY_);
+      //   precondSolvePtr_(precond_, parMat_, parRhs_, parY_);
 
+#if debugMode    
       printf("AFTER applying precon to RHS (parRhs)%16.16f \n", hypre_ParKrylovInnerProdOneOfMult(parRhs_, 0,
 	    parRhs_, 0 ));
 
       printf("AFTER applying precon to RHS (parY) %16.16f \n", hypre_ParKrylovInnerProdOneOfMult(parY_, 0,
 	    parY_, 0 ));
 
-
       hypre_ParKrylovCopyVectorOneOfMult(parRhs_, 0,
 	  parOldRhs_, 0 );
+#endif
 #if 0
       hypre_ParKrylovCopyVectorOneOfMult(parY_, 0,
 	  parRhs_, 0 );
@@ -1062,12 +1137,15 @@ namespace nalu {
 
       printf("BEFORE SOLVER CALL (parRhs) %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parRhs_, 0,
 	      parRhs_, 0 )));
-   
+
 #endif
-   solverSolvePtr_(solver_, parMat_, parRhs_, parSln_);
+      //      hypre_ParKrylovCopyVectorOneOfMult(parY_, 0,
+      //	  parRhs_, 0 );
+      solverSolvePtr_(solver_, parMat_, parRhs_, parSln_);
       //compute TRUE residual
-double NormB =  sqrt(hypre_ParKrylovInnerProdOneOfMult(parOldRhs_, 0,
-	      parOldRhs_, 0 ));
+#if debugMode    
+      double NormB =  sqrt(hypre_ParKrylovInnerProdOneOfMult(parOldRhs_, 0,
+	    parOldRhs_, 0 ));
       hypre_ParKrylovMatvecMult(NULL,
 	  -1.0f,
 	  parMat_,
@@ -1091,6 +1169,40 @@ double NormB =  sqrt(hypre_ParKrylovInnerProdOneOfMult(parOldRhs_, 0,
 	      parOldRhs_, 0 )));
       printf("AFTER SOLVER CALL RELATIVE RES %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parOldRhs_, 0,
 	      parOldRhs_, 0 ))/NormB);
+#endif      
+      MPI_Barrier(comm_);
+
+#if 1      
+      auto stop2 = std::chrono::system_clock::now();
+      std::chrono::duration<double> solve = stop2 - stop3;
+
+      if (iproc_ == 0) {
+	timers_.emplace_back("Preconditioner setup", setup.count());
+	timers_.emplace_back("Solve", solve.count());
+      }
+#endif
+      solveComplete_ = true;
+    }
+
+    void HypreSystem::solve()
+    {
+      finalize_system();
+
+      auto start = std::chrono::system_clock::now();
+      if (usePrecond_) {
+	solverPrecondPtr_(
+	    solver_, precondSolvePtr_, precondSetupPtr_, precond_);
+      }
+      //left precon is applied to b INSIDE SOLVER!!! DONT DO ANYTHING TO RHS HERE
+
+
+      solverSetupPtr_(solver_, parMat_, parRhs_, parSln_);
+      //printf("solver setup done \n");      
+      MPI_Barrier(comm_);
+      auto stop1 = std::chrono::system_clock::now();
+
+      std::chrono::duration<double> setup = stop1 - start;
+      solverSolvePtr_(solver_, parMat_, parRhs_, parSln_);
       MPI_Barrier(comm_);
       auto stop2 = std::chrono::system_clock::now();
       std::chrono::duration<double> solve = stop2 - stop1;
@@ -1160,11 +1272,30 @@ double NormB =  sqrt(hypre_ParKrylovInnerProdOneOfMult(parOldRhs_, 0,
     {
       if (iproc_ != 0) return;
 
+      double totalSolve =0.0;
+      double totalIGU =0.0;
+      double totalSU =0.0;
+      std::string slv ("Solve");
+      std::string igu ("Init Guess Update");
+      std::string su ("Space Update");
       std::cout << "\nTimer summary: " << std::endl;
       for (auto& timer: timers_) {
 	std::cout << "    " << std::setw(25) << std::left << timer.first
 	  << timer.second << " seconds" << std::endl;
+	if (slv.compare(timer.first) == 0){
+	  //printf("adding %f to %f (total solve time) \n", timer.second, totalSolve);
+	  totalSolve+=timer.second;
+	}		
+	if (igu.compare(timer.first) == 0) totalIGU+=timer.second;		
+	if (su.compare(timer.first) == 0) totalSU+=timer.second;		
+
       }
+      std::cout << "    " << std::setw(25) << std::left << "TOTAL SOLVE TIME"
+	<< totalSolve << " seconds" << std::endl;
+      std::cout << "    " << std::setw(25) << std::left << "TOTAL INIT GUESS TIME"
+	<< totalIGU << " seconds" << std::endl;
+      std::cout << "    " << std::setw(25) << std::left << "TOTAL SPACE UPDATE TIME"
+	<< totalSU << " seconds" << std::endl;
     }
 
     void HypreSystem::load_mm_matrix(std::string matfile)
@@ -1328,13 +1459,18 @@ double NormB =  sqrt(hypre_ParKrylovInnerProdOneOfMult(parOldRhs_, 0,
 
       //printf("init rhs\n");      
       HYPRE_IJVectorInitialize(rhs_);
+
+#if debugMode    
       printf("initializing rhs_\n");
+#endif
       HYPRE_IJVectorGetObject(rhs_, (void**)&parRhs_);
 
       HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &sln_);
       HYPRE_IJVectorSetObjectType(sln_, HYPRE_PARCSR);
       HYPRE_IJVectorInitialize(sln_);
+#if debugMode    
       printf("initializing sln_\n");
+#endif
       HYPRE_IJVectorGetObject(sln_, (void**)&parSln_);
 
       HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &slnRef_);
@@ -1378,6 +1514,7 @@ double NormB =  sqrt(hypre_ParKrylovInnerProdOneOfMult(parOldRhs_, 0,
       HYPRE_IJMatrixAssemble(mat_);
       HYPRE_IJVectorAssemble(rhs_);
       MPI_Barrier(comm_);
+      //printf("BEFORE COPY!\n");
       HYPRE_IJMatrixCopyCPUtoGPU(mat_);
       MPI_Barrier(comm_);
 

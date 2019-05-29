@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <chrono>
+#define useProjection 1
 
 int main(int argc, char* argv[])
 {
@@ -31,21 +32,26 @@ int main(int argc, char* argv[])
 
   linsys.loadSetup();
   int num_matrices = linsys.get_num_matrices();
-printf("TOTAL NUM MAtRICES %d ", num_matrices);
-    
+  printf("TOTAL NUM MATRICES %d ", num_matrices);
+
   for (int ii = 1; ii<= num_matrices; ++ii){
     printf("\n\n\n ============== LOADING MATRIX %d ======================================================\n\n\n", ii);
     linsys.loadMatrix(ii);
-//    linsys.createProjectedInitGuess(ii);
-    linsys.solve();
-    linsys.projectionSpaceUpdate(ii);
+    if (useProjection){
+
+      linsys.solve2();
+      linsys.projectionSpaceUpdate(ii);
+    }
+    else{
+      linsys.solve();
+    }
     linsys.destroyMatrix();
   }
 
 
+  linsys.summarize_timers();
   linsys.check_solution();
   linsys.output_linear_system();
-  linsys.summarize_timers();
 
   MPI_Barrier(MPI_COMM_WORLD);
   auto stop = std::chrono::system_clock::now();

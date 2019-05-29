@@ -32,6 +32,8 @@ public:
     void set_num_matrices(int num);
 void projectionSpaceUpdate(int i);
     void solve();
+//solve2 takes init guess improvement into account
+    void solve2();
 
     //! Output the HYPRE matrix, rhs and solution vectors
     void output_linear_system();
