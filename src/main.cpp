@@ -37,7 +37,7 @@ int main(int argc, char* argv[])
   for (int ii = 1; ii<= num_matrices; ++ii){
     printf("\n\n\n ============== LOADING MATRIX %d ======================================================\n\n\n", ii);
     linsys.loadMatrix(ii);
-    if (useProjection){
+   if (useProjection){
 
       linsys.solve2();
       linsys.projectionSpaceUpdate(ii);
@@ -46,7 +46,7 @@ int main(int argc, char* argv[])
       linsys.solve();
     }
     linsys.destroyMatrix();
-  }
+}
 
 
   linsys.summarize_timers();

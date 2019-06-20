@@ -10,7 +10,7 @@
 #include "HYPRE.h"
 #include "HYPRE_config.h"
 
-#define debugMode 0
+#define debugMode 1
 extern "C"
 {
 #include "mmio.h"
@@ -164,8 +164,10 @@ namespace nalu {
     HYPRE_IJMatrixDestroy(mat_);
     HYPRE_IJVectorDestroy(sln_);
     HYPRE_IJVectorDestroy(rhs_);
-    precondDestroyPtr_(precond_);
-  }
+if (usePrecond_)  {
+  precondDestroyPtr_(precond_);
+}
+ }
 
   void HypreSystem::planeRot(double * x, double * G){
     //Givens rot on a 2x1 vector, returns 2x3 matrix ORDERED COLUMNWISE, third column is a vectori y such that G*x = y
@@ -1066,7 +1068,18 @@ printf("I IS SMALLER THAN 1 \n");
       printf("starting solver setup \n");
 #endif      
       //works ok if this command is never called      
+      printf("BEFORE solver setup  to SLN %16.16f RHS %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parRhs_, 0,
+	    parRhs_, 0 )),  sqrt(hypre_ParKrylovInnerProdOneOfMult(parSln_, 0,
+	    parSln_, 0 )));
+      printf("BEFORE solver setup  CPU  SLN %16.16f RHS CPU %16.16f \n", sqrt(hypre_ParVectorInnerProd(parRhs_,
+	    parRhs_ )),  sqrt(hypre_ParVectorInnerProd(parSln_,parSln_ )));
+//hypre_ParVectorInnerProd
       solverSetupPtr_(solver_, parMat_, parRhs_, parSln_);
+      printf("AFTER solver setup  to SLN %16.16f RHS %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parRhs_, 0,
+	    parRhs_, 0 )),  sqrt(hypre_ParKrylovInnerProdOneOfMult(parSln_, 0,
+	    parSln_, 0 )));
+      printf("AFTER solver setup  CPU  SLN %16.16f RHS CPU %16.16f \n", sqrt(hypre_ParVectorInnerProd(parRhs_,
+	    parRhs_ )),  sqrt(hypre_ParVectorInnerProd(parSln_,parSln_ )));
 #if debugMode    
       printf("solver setup done \n");
 #endif      
@@ -1101,16 +1114,6 @@ printf("I IS SMALLER THAN 1 \n");
       //   hypre_ParKrylovClearVector(parY_);
       //   precondSolvePtr_(precond_, parMat_, parRhs_, parY_);
 
-#if debugMode    
-      printf("AFTER applying precon to RHS (parRhs)%16.16f \n", hypre_ParKrylovInnerProdOneOfMult(parRhs_, 0,
-	    parRhs_, 0 ));
-
-      printf("AFTER applying precon to RHS (parY) %16.16f \n", hypre_ParKrylovInnerProdOneOfMult(parY_, 0,
-	    parY_, 0 ));
-
-      hypre_ParKrylovCopyVectorOneOfMult(parRhs_, 0,
-	  parOldRhs_, 0 );
-#endif
 #if 0
       hypre_ParKrylovCopyVectorOneOfMult(parY_, 0,
 	  parRhs_, 0 );
@@ -1165,10 +1168,12 @@ printf("I IS SMALLER THAN 1 \n");
       //  parY_,
       // 0);
 
+      printf("\n AFTER SOLVER CALL (parSln) %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parSln_, 0,
+	      parSln_, 0 )));
       printf("\n AFTER SOLVER CALL (parY) %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parOldRhs_, 0,
 	      parOldRhs_, 0 )));
-      printf("AFTER SOLVER CALL RELATIVE RES %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parOldRhs_, 0,
-	      parOldRhs_, 0 ))/NormB);
+      printf("AFTER SOLVER CALL (RHs) %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parRhs_, 0,
+	      parRhs_, 0 )));
 #endif      
       MPI_Barrier(comm_);
 
@@ -1187,7 +1192,7 @@ printf("I IS SMALLER THAN 1 \n");
     void HypreSystem::solve()
     {
       finalize_system();
-
+#if 1
       auto start = std::chrono::system_clock::now();
       if (usePrecond_) {
 	solverPrecondPtr_(
@@ -1213,7 +1218,8 @@ printf("I IS SMALLER THAN 1 \n");
       }
 
       solveComplete_ = true;
-    }
+#endif  
+  }
 
     void HypreSystem::output_linear_system()
     {
@@ -1510,7 +1516,6 @@ printf("I IS SMALLER THAN 1 \n");
 	}
 
       }
-
       HYPRE_IJMatrixAssemble(mat_);
       HYPRE_IJVectorAssemble(rhs_);
       MPI_Barrier(comm_);
@@ -1542,7 +1547,7 @@ printf("I IS SMALLER THAN 1 \n");
 
 	timers_.emplace_back("Finalize system", elapsed.count());
       }
-    }
+}
 
     void HypreSystem::read_mm_matrix(std::string matfile)
     {
