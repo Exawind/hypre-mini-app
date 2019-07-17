@@ -32,9 +32,11 @@ int main(int argc, char* argv[])
 
   linsys.loadSetup();
   int num_matrices = linsys.get_num_matrices();
+  if (iproc == 0)
   printf("TOTAL NUM MATRICES %d ", num_matrices);
 
   for (int ii = 1; ii<= num_matrices; ++ii){
+  if (iproc == 0)
     printf("\n\n\n ============== LOADING MATRIX %d ======================================================\n\n\n", ii);
     linsys.loadMatrix(ii);
    if (useProjection){

@@ -10,7 +10,7 @@
 #include "HYPRE.h"
 #include "HYPRE_config.h"
 
-#define debugMode 1
+#define debugMode 0
 extern "C"
 {
 #include "mmio.h"
@@ -86,7 +86,6 @@ namespace nalu {
 
       num_matrices = get_optional(linsys, "num_matrices", 1); 
       spaceSize = get_optional(linsys, "space_size", 5);
-
       cudaMalloc ( &GPUtmp, sizeof(HYPRE_Real)*spaceSize);
       CPUtmp = (HYPRE_Real*) calloc(spaceSize, sizeof(HYPRE_Real)); 
 
@@ -277,7 +276,6 @@ if (usePrecond_)  {
       // FOR LEFT PRECON ONLY!!!
       // rhs =  AMGVcycle(L,bn,1);
       //take 0s as init guess (std)
-printf("I IS SMALLER THAN 1 \n");
       HYPRE_ParVectorSetConstantValues(parSln_, 0.0);
 
       //parY = parY -R()*Q;
@@ -285,7 +283,7 @@ printf("I IS SMALLER THAN 1 \n");
       parY_ =(hypre_ParVector*)  hypre_ParKrylovCreateVector((hypre_ParVector *)parSln_);//tmp
       parZ_ =(hypre_ParVector*)  hypre_ParKrylovCreateVector((hypre_ParVector *)parSln_);//another tmp
       parOldRhs_ =(hypre_ParVector*)  hypre_ParKrylovCreateVector((hypre_ParVector *)parSln_);//another tmp
-    }
+ }
     else {
 
       /*
@@ -358,9 +356,11 @@ printf("I IS SMALLER THAN 1 \n");
       hypre_ParKrylovUpdateVectorCPU(parY_);
       hypre_ParKrylovClearVector(parZ_);
       //parZ = AMGVcycle(L,parY,1);  
-
+if (usePrecond_)
       precondSolvePtr_(precond_, parMat_, parY_, parZ_);
-
+else
+      hypre_ParKrylovCopyVectorOneOfMult(parY_, 0,
+	  parZ_, 0 );
       //un = parZ = parZ + parSln_
       hypre_ParKrylovAxpyOneOfMult(1.0f,
 	  parSln_,0,
@@ -385,13 +385,52 @@ printf("I IS SMALLER THAN 1 \n");
 
       hypre_ParKrylovUpdateVectorCPU(parY_);
       hypre_ParKrylovClearVector(parSln_);
+if (usePrecond_)
       precondSolvePtr_(precond_, parMat_, parY_, parSln_);
+else
+      hypre_ParKrylovCopyVectorOneOfMult(parY_, 0,
+	  parSln_, 0 );
 
       //un = un + AMGVcycle(L,bn - A*un,1);ie parSln = parZ + parSln
       hypre_ParKrylovAxpyOneOfMult(1.0f,
 	  parZ_,0,
 	  parSln_,
 	  0);
+//Hegedus trick
+//needs to go inside GMRES if precon is used
+#if 1
+// parZ = M*parSln_;
+
+      hypre_ParKrylovUpdateVectorCPU(parSln_);
+      hypre_ParKrylovClearVector(parY_);
+      //parZ = AMGVcycle(L,parY,1);  
+if (usePrecond_)
+      precondSolvePtr_(precond_, parMat_, parSln_, parY_);
+     // hypre_ParKrylovCopyVectorOneOfMult(parSln_, 0,
+//	  parY_, 0 );
+else
+      hypre_ParKrylovCopyVectorOneOfMult(parSln_, 0,
+	  parY_, 0 );
+//parY = A*parZ
+
+      hypre_ParKrylovMatvecMult(NULL,
+	  1.0f,
+	  parMat_,
+	  parY_,
+	  0,
+	  0.0f,
+	  parZ_, 0);
+
+//parY'*Rhs
+double part1  = hypre_ParKrylovInnerProdOneOfMult(parZ_,0, parRhs_, 0 );
+double part2  = hypre_ParKrylovInnerProdOneOfMult(parZ_,0, parZ_, 0 );
+printf("scaling factor %16.16f \n", part1/part2 );
+
+      hypre_ParKrylovScaleVectorOneOfMult(part1/part2, parSln_, 0 ); 
+
+#endif
+
+
 
 #if 0
       // one more Richardson
@@ -1059,37 +1098,36 @@ printf("I IS SMALLER THAN 1 \n");
 #if debugMode    
       printf("system has been finalized \n");
 #endif
+//works
       auto start = std::chrono::system_clock::now();
       if (usePrecond_) {
 	solverPrecondPtr_(
 	    solver_, precondSolvePtr_, precondSetupPtr_, precond_);
       }
+//works
 #if debugMode    
       printf("starting solver setup \n");
-#endif      
       //works ok if this command is never called      
       printf("BEFORE solver setup  to SLN %16.16f RHS %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parRhs_, 0,
 	    parRhs_, 0 )),  sqrt(hypre_ParKrylovInnerProdOneOfMult(parSln_, 0,
 	    parSln_, 0 )));
       printf("BEFORE solver setup  CPU  SLN %16.16f RHS CPU %16.16f \n", sqrt(hypre_ParVectorInnerProd(parRhs_,
 	    parRhs_ )),  sqrt(hypre_ParVectorInnerProd(parSln_,parSln_ )));
+#endif      
+//works
 //hypre_ParVectorInnerProd
       solverSetupPtr_(solver_, parMat_, parRhs_, parSln_);
-      printf("AFTER solver setup  to SLN %16.16f RHS %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parRhs_, 0,
-	    parRhs_, 0 )),  sqrt(hypre_ParKrylovInnerProdOneOfMult(parSln_, 0,
-	    parSln_, 0 )));
-      printf("AFTER solver setup  CPU  SLN %16.16f RHS CPU %16.16f \n", sqrt(hypre_ParVectorInnerProd(parRhs_,
-	    parRhs_ )),  sqrt(hypre_ParVectorInnerProd(parSln_,parSln_ )));
 #if debugMode    
       printf("solver setup done \n");
 #endif      
       MPI_Barrier(comm_);
       auto stop1 = std::chrono::system_clock::now();
       std::chrono::duration<double> setup = stop1 - start;
-
+//works
       createProjectedInitGuess(currentSpaceSize);
       //printf("solver setup done \n");      
 
+#if 1
 #if 1      
       auto stop3 = std::chrono::system_clock::now();
       std::chrono::duration<double> initGuessUpdate = stop3 - stop1;
@@ -1186,7 +1224,9 @@ printf("I IS SMALLER THAN 1 \n");
 	timers_.emplace_back("Solve", solve.count());
       }
 #endif
-      solveComplete_ = true;
+    
+  solveComplete_ = true;
+#endif
     }
 
     void HypreSystem::solve()
