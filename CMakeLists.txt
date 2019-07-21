@@ -21,12 +21,18 @@ find_library(CUDA_NVTX_LIBRARY
 find_package(HYPRE REQUIRED)
 include_directories(SYSTEM ${HYPRE_INCLUDE_DIRS})
 
-set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Build tests")
-set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Build tools")
-set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Build contrib")
+set(CMAKE_PREFIX_PATH ${YAML_ROOT_DIR} ${CMAKE_PREFIX_PATH})
+find_package(YAML-CPP)
+if (YAML-CPP_FOUND)
+  include_directories(SYSTEM ${YAML_CPP_INCLUDE_DIR})
+else()
+  set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Build tests")
+  set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Build tools")
+  set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Build contrib")
 
-add_subdirectory(deps/yaml-cpp)
+  add_subdirectory(deps/yaml-cpp)
+  include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/deps/yaml-cpp/include/")
+endif()
 
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "--relocatable-device-code=true ")
-include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/deps/yaml-cpp/include/")
 add_subdirectory(src)

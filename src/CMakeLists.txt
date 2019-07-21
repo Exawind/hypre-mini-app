@@ -4,9 +4,14 @@ add_executable(hypre_app
   HypreSystem.cpp
   main.cpp
   )
+if (YAML-CPP_FOUND)
+  target_link_libraries(hypre_app ${YAML_CPP_LIBRARIES})
+else()
+  target_link_libraries(hypre_app yaml-cpp)
+endif()
+
 target_link_libraries(hypre_app
   ${HYPRE_LIBRARIES}
-  yaml-cpp
   ${MPI_CXX_LIBRARIES}
   ${MPI_C_LIBRARIES}
   ${CUDA_cusparse_LIBRARY}
