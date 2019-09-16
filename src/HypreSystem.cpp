@@ -149,6 +149,7 @@ namespace nalu {
       setup_boomeramg_precond();
     } else if (preconditioner == "none") {
       usePrecond_ = false;
+
       if (iproc_ == 0)
 	std::cout << "No preconditioner used" << std::endl;
     }
@@ -163,10 +164,10 @@ namespace nalu {
     HYPRE_IJMatrixDestroy(mat_);
     HYPRE_IJVectorDestroy(sln_);
     HYPRE_IJVectorDestroy(rhs_);
-if (usePrecond_)  {
-  precondDestroyPtr_(precond_);
-}
- }
+    if (usePrecond_)  {
+      precondDestroyPtr_(precond_);
+    }
+  }
 
   void HypreSystem::planeRot(double * x, double * G){
     //Givens rot on a 2x1 vector, returns 2x3 matrix ORDERED COLUMNWISE, third column is a vectori y such that G*x = y
@@ -283,7 +284,7 @@ if (usePrecond_)  {
       parY_ =(hypre_ParVector*)  hypre_ParKrylovCreateVector((hypre_ParVector *)parSln_);//tmp
       parZ_ =(hypre_ParVector*)  hypre_ParKrylovCreateVector((hypre_ParVector *)parSln_);//another tmp
       parOldRhs_ =(hypre_ParVector*)  hypre_ParKrylovCreateVector((hypre_ParVector *)parSln_);//another tmp
- }
+    }
     else {
 
       /*
@@ -312,8 +313,7 @@ if (usePrecond_)  {
 #if debugMode
       printf("START: IP of  parY (=rhs) with itself %16.16f \n", hypre_ParKrylovInnerProdOneOfMult(parY_, 0,
 	    parY_, 0 ));
-      printf("START: IP of  sln with itself (should be ZERO) %16.16f \n", hypre_ParKrylovInnerProdOneOfMult(parSln_, 0,
-	    parSln_, 0 ));
+      printf("START: IP of  sln with itself (should be ZERO) %16.16f \n", hypre_ParKrylovInnerProdOneOfMult(parSln_, 0,  parSln_, 0 ));
       printf("CURRENT SPACE SIZE %d \n", currentSpaceSize);
       //works
       printf("trying to multiply by (current space size %d) and putting the result in Q(%d) \n", currentSpaceSize, currentSpaceSize);
@@ -356,11 +356,11 @@ if (usePrecond_)  {
       hypre_ParKrylovUpdateVectorCPU(parY_);
       hypre_ParKrylovClearVector(parZ_);
       //parZ = AMGVcycle(L,parY,1);  
-if (usePrecond_)
-      precondSolvePtr_(precond_, parMat_, parY_, parZ_);
-else
-      hypre_ParKrylovCopyVectorOneOfMult(parY_, 0,
-	  parZ_, 0 );
+      if (usePrecond_)
+	precondSolvePtr_(precond_, parMat_, parY_, parZ_);
+      else
+	hypre_ParKrylovCopyVectorOneOfMult(parY_, 0,
+	    parZ_, 0 );
       //un = parZ = parZ + parSln_
       hypre_ParKrylovAxpyOneOfMult(1.0f,
 	  parSln_,0,
@@ -385,57 +385,25 @@ else
 
       hypre_ParKrylovUpdateVectorCPU(parY_);
       hypre_ParKrylovClearVector(parSln_);
-if (usePrecond_)
-      precondSolvePtr_(precond_, parMat_, parY_, parSln_);
-else
-      hypre_ParKrylovCopyVectorOneOfMult(parY_, 0,
-	  parSln_, 0 );
+      if (usePrecond_)
+	precondSolvePtr_(precond_, parMat_, parY_, parSln_);
+      else
+	hypre_ParKrylovCopyVectorOneOfMult(parY_, 0,
+	    parSln_, 0 );
 
       //un = un + AMGVcycle(L,bn - A*un,1);ie parSln = parZ + parSln
       hypre_ParKrylovAxpyOneOfMult(1.0f,
 	  parZ_,0,
 	  parSln_,
 	  0);
-//Hegedus trick
-//needs to go inside GMRES if precon is used
+
+
+
 #if 1
-// parZ = M*parSln_;
-
-      hypre_ParKrylovUpdateVectorCPU(parSln_);
-      hypre_ParKrylovClearVector(parY_);
-      //parZ = AMGVcycle(L,parY,1);  
-if (usePrecond_)
-      precondSolvePtr_(precond_, parMat_, parSln_, parY_);
-     // hypre_ParKrylovCopyVectorOneOfMult(parSln_, 0,
-//	  parY_, 0 );
-else
-      hypre_ParKrylovCopyVectorOneOfMult(parSln_, 0,
-	  parY_, 0 );
-//parY = A*parZ
-
-      hypre_ParKrylovMatvecMult(NULL,
-	  1.0f,
-	  parMat_,
-	  parY_,
-	  0,
-	  0.0f,
-	  parZ_, 0);
-
-//parY'*Rhs
-double part1  = hypre_ParKrylovInnerProdOneOfMult(parZ_,0, parRhs_, 0 );
-double part2  = hypre_ParKrylovInnerProdOneOfMult(parZ_,0, parZ_, 0 );
-printf("scaling factor %16.16f \n", part1/part2 );
-
-      hypre_ParKrylovScaleVectorOneOfMult(part1/part2, parSln_, 0 ); 
-
-#endif
-
-
-
-#if 0
       // one more Richardson
       //parY = bn
-      hypre_ParKrylovCopyVectorOneOfMult(parRhs_, 0,
+printf("SECOND RICHARDSON\n");     
+ hypre_ParKrylovCopyVectorOneOfMult(parRhs_, 0,
 	  parY_, 0 );
       //parY = parY-A*Sln 
       hypre_ParKrylovMatvecMult(NULL,
@@ -449,7 +417,11 @@ printf("scaling factor %16.16f \n", part1/part2 );
       //parZ = AMGVcycle(parY)
       hypre_ParKrylovUpdateVectorCPU(parY_);
       hypre_ParKrylovClearVector(parZ_);
+      if (usePrecond_)
       precondSolvePtr_(precond_, parMat_, parY_, parZ_);
+      else
+	hypre_ParKrylovCopyVectorOneOfMult(parY_, 0,
+	    parZ_, 0 );
 
       //un = un + AMGVcycle(L,bn - A*un,1);ie parSln = parZ + parSln
       hypre_ParKrylovAxpyOneOfMult(1.0f,
@@ -1098,93 +1070,51 @@ printf("scaling factor %16.16f \n", part1/part2 );
 #if debugMode    
       printf("system has been finalized \n");
 #endif
-//works
+      //works
       auto start = std::chrono::system_clock::now();
       if (usePrecond_) {
 	solverPrecondPtr_(
 	    solver_, precondSolvePtr_, precondSetupPtr_, precond_);
       }
-//works
+      //works
 #if debugMode    
       printf("starting solver setup \n");
       //works ok if this command is never called      
-      printf("BEFORE solver setup  to SLN %16.16f RHS %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parRhs_, 0,
-	    parRhs_, 0 )),  sqrt(hypre_ParKrylovInnerProdOneOfMult(parSln_, 0,
-	    parSln_, 0 )));
-      printf("BEFORE solver setup  CPU  SLN %16.16f RHS CPU %16.16f \n", sqrt(hypre_ParVectorInnerProd(parRhs_,
-	    parRhs_ )),  sqrt(hypre_ParVectorInnerProd(parSln_,parSln_ )));
-#endif      
-//works
-//hypre_ParVectorInnerProd
+      printf("BEFORE solver setup  to SLN %16.16f RHS %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parRhs_, 0, parRhs_, 0 )),  sqrt(hypre_ParKrylovInnerProdOneOfMult(parSln_, 0,
+	      parSln_, 0 )));
+      printf("BEFORE solver setup  CPU  SLN %16.16f RHS CPU %16.16f \n", sqrt(hypre_ParVectorInnerProd(parRhs_, parRhs_ )),  sqrt(hypre_ParVectorInnerProd(parSln_,parSln_ )));
+#endif
+      
       solverSetupPtr_(solver_, parMat_, parRhs_, parSln_);
+
 #if debugMode    
       printf("solver setup done \n");
 #endif      
+
       MPI_Barrier(comm_);
       auto stop1 = std::chrono::system_clock::now();
       std::chrono::duration<double> setup = stop1 - start;
-//works
-      createProjectedInitGuess(currentSpaceSize);
-      //printf("solver setup done \n");      
+      //works
 
-#if 1
-#if 1      
+      createProjectedInitGuess(currentSpaceSize);
+
       auto stop3 = std::chrono::system_clock::now();
       std::chrono::duration<double> initGuessUpdate = stop3 - stop1;
 
       if (iproc_ == 0) {
 	timers_.emplace_back("Init Guess Update", initGuessUpdate.count());
       }
-#endif
 
-      //For left precon
-      /* DONT DO ANYTHING HERE, GMRES WOULD DO IT FOR YOu
-	 HYPRE_Solver solver,
-	 HYPRE_ParCSRMatrix A,
-	 HYPRE_ParVector b,
-	 HYPRE_ParVector x
-       * */
 
-#if debugMode    
+#if 1    
       printf("BEFORE applying precon to RHS %16.16f \n", hypre_ParKrylovInnerProdOneOfMult(parRhs_, 0,
 	    parRhs_, 0 ));
 #endif     
-      //   hypre_ParKrylovClearVector(parY_);
-      //   precondSolvePtr_(precond_, parMat_, parRhs_, parY_);
 
-#if 0
-      hypre_ParKrylovCopyVectorOneOfMult(parY_, 0,
-	  parRhs_, 0 );
-      hypre_ParKrylovMatvecMult(NULL,
-	  1.0f,
-	  parMat_,
-	  parSln_,
-	  0,
-	  0.0f,
-	  parY_, 0);
+      hypre_ParKrylovCopyVectorOneOfMult(parRhs_, 0, parOldRhs_, 0 );
 
-      hypre_ParKrylovUpdateVectorCPU(parY_);
-      hypre_ParKrylovClearVector(parZ_);
-      precondSolvePtr_(precond_, parMat_, parY_, parZ_);
+      HYPRE_ParCSRCOGMRESSetAbsoluteTol(solver_, sqrt(hypre_ParKrylovInnerProdOneOfMult(parRhs_, 0,	      parRhs_, 0 ))*1e-5 );
 
-      hypre_ParKrylovCopyVectorOneOfMult(parRhs_, 0,
-	  parY_, 0 );
-      hypre_ParKrylovAxpyOneOfMult(-1.0f,
-	  parZ_,0,
-	  parY_,
-	  0);
-      printf("BEFORE SOLVER CALL (parY) %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parY_, 0,
-	      parY_, 0 )));
-
-      printf("BEFORE SOLVER CALL (parRhs) %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parRhs_, 0,
-	      parRhs_, 0 )));
-
-#endif
-      //      hypre_ParKrylovCopyVectorOneOfMult(parY_, 0,
-      //	  parRhs_, 0 );
-      solverSolvePtr_(solver_, parMat_, parRhs_, parSln_);
-      //compute TRUE residual
-#if debugMode    
       double NormB =  sqrt(hypre_ParKrylovInnerProdOneOfMult(parOldRhs_, 0,
 	    parOldRhs_, 0 ));
       hypre_ParKrylovMatvecMult(NULL,
@@ -1194,28 +1124,26 @@ printf("scaling factor %16.16f \n", part1/part2 );
 	  0,
 	  1.0f,
 	  parOldRhs_, 0);
+      printf("\n BEFORE SOLVER GMRES (residual -not scaled!) %16.16f scaled %16.16f normB %16.16f\n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parOldRhs_, 0, parOldRhs_, 0 )),  sqrt(hypre_ParKrylovInnerProdOneOfMult(parOldRhs_, 0, parOldRhs_, 0 ))/NormB, NormB);
+      
+      hypre_ParKrylovCopyVectorOneOfMult(parRhs_, 0, parOldRhs_, 0 );
+       solverSolvePtr_(solver_, parMat_, parRhs_, parSln_);
 
-      //hypre_ParKrylovUpdateVectorCPU(parY_);
-      //hypre_ParKrylovClearVector(parZ_);
-      //precondSolvePtr_(precond_, parMat_, parY_, parZ_);
+      //compute TRUE residual
+#if 1    
+      hypre_ParKrylovMatvecMult(NULL,
+	  -1.0f,
+	  parMat_,
+	  parSln_,
+	  0,
+	  1.0f,
+	  parOldRhs_, 0);
 
-      //hypre_ParKrylovCopyVectorOneOfMult(parRhs_, 0,
-      //parY_, 0 );
-      //hypre_ParKrylovAxpyOneOfMult(-1.0f,
-      //  parZ_,0,
-      //  parY_,
-      // 0);
 
-      printf("\n AFTER SOLVER CALL (parSln) %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parSln_, 0,
-	      parSln_, 0 )));
-      printf("\n AFTER SOLVER CALL (parY) %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parOldRhs_, 0,
-	      parOldRhs_, 0 )));
-      printf("AFTER SOLVER CALL (RHs) %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parRhs_, 0,
-	      parRhs_, 0 )));
+      printf("\n AFTER SOLVER CALL (residual) %16.16f orighinal b norm %16.16f\n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parOldRhs_, 0, parOldRhs_, 0 )), NormB);
 #endif      
       MPI_Barrier(comm_);
 
-#if 1      
       auto stop2 = std::chrono::system_clock::now();
       std::chrono::duration<double> solve = stop2 - stop3;
 
@@ -1223,16 +1151,13 @@ printf("scaling factor %16.16f \n", part1/part2 );
 	timers_.emplace_back("Preconditioner setup", setup.count());
 	timers_.emplace_back("Solve", solve.count());
       }
-#endif
-    
-  solveComplete_ = true;
-#endif
+
+      solveComplete_ = true;
     }
 
     void HypreSystem::solve()
     {
       finalize_system();
-#if 1
       auto start = std::chrono::system_clock::now();
       if (usePrecond_) {
 	solverPrecondPtr_(
@@ -1247,7 +1172,65 @@ printf("scaling factor %16.16f \n", part1/part2 );
       auto stop1 = std::chrono::system_clock::now();
 
       std::chrono::duration<double> setup = stop1 - start;
+
+      if (parZ_ == NULL) {  parZ_ =(hypre_ParVector*)  hypre_ParKrylovCreateVector((hypre_ParVector *)parSln_);
+	parY_ =(hypre_ParVector*)  hypre_ParKrylovCreateVector((hypre_ParVector *)parSln_);
+	parOldRhs_ =(hypre_ParVector*)  hypre_ParKrylovCreateVector((hypre_ParVector *)parSln_);
+      }
+
+      HYPRE_ParVectorSetConstantValues(parSln_, 0.0);
+//works
+      hypre_ParKrylovMatvecMult(NULL,
+	  1.0f,
+	  parMat_,
+	  parSln_,
+	  0,
+	  0.0f,
+	  parY_, 0);
+
+      hypre_ParKrylovUpdateVectorCPU(parRhs_);
+
+      hypre_ParKrylovClearVector(parZ_);
+//works
+if (usePrecond_){
+      precondSolvePtr_(precond_, parMat_, parRhs_, parZ_);}
+else{
+
+      hypre_ParKrylovCopyVectorOneOfMult(parRhs_, 0,
+	  parZ_, 0 );
+}
+      hypre_ParKrylovAxpyOneOfMult(-1.0f,
+	  parZ_,0,
+	  parY_,
+	  0);
+
+      printf("BEFORE SOLVER CALL (original residual) %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parY_, 0,
+	      parY_, 0 )));
+
+      HYPRE_ParCSRCOGMRESSetAbsoluteTol(solver_, sqrt(hypre_ParKrylovInnerProdOneOfMult(parY_, 0,
+	      parY_, 0 ))*1e-5 );
+
+      hypre_ParKrylovCopyVectorOneOfMult(parRhs_, 0,
+	  parOldRhs_, 0 );
+
       solverSolvePtr_(solver_, parMat_, parRhs_, parSln_);
+
+
+      double NormB =  sqrt(hypre_ParKrylovInnerProdOneOfMult(parOldRhs_, 0,
+	    parOldRhs_, 0 ));
+      hypre_ParKrylovMatvecMult(NULL,
+	  -1.0f,
+	  parMat_,
+	  parSln_,
+	  0,
+	  1.0f,
+	  parOldRhs_, 0);
+
+
+      printf("\n AFTER SOLVER CALL (parB) %16.16f \n", NormB);
+      printf("\n AFTER SOLVER CALL (residual) %16.16f \n", sqrt(hypre_ParKrylovInnerProdOneOfMult(parOldRhs_, 0,
+	      parOldRhs_, 0 )));
+
       MPI_Barrier(comm_);
       auto stop2 = std::chrono::system_clock::now();
       std::chrono::duration<double> solve = stop2 - stop1;
@@ -1258,8 +1241,7 @@ printf("scaling factor %16.16f \n", part1/part2 );
       }
 
       solveComplete_ = true;
-#endif  
-  }
+    }
 
     void HypreSystem::output_linear_system()
     {
@@ -1587,7 +1569,7 @@ printf("scaling factor %16.16f \n", part1/part2 );
 
 	timers_.emplace_back("Finalize system", elapsed.count());
       }
-}
+    }
 
     void HypreSystem::read_mm_matrix(std::string matfile)
     {
