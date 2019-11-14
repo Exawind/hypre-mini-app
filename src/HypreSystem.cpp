@@ -55,7 +55,11 @@ namespace nalu {
   void
     HypreSystem::load()
     {
+      YAML::Node linsys = inpfile_["linear_system"];
+      std::string mat_format = get_optional<std::string>(linsys, "type", "matrix_market") ;
 
+HYPRE_Init(NULL, NULL);
+#if 0
       cudaError_t ierr;
       int numGPUs;
 int modeK;
@@ -68,13 +72,10 @@ HYPRE_DEVICE_COUNT = numGPUs;
 if (ierr != cudaSuccess)
 	throw std::runtime_error("Error getting GPU count");
       ierr = cudaSetDevice(iproc_ % numGPUs);
-printf("Hi i am rank %d Setting my GPUs to %d !\n",iproc_, iproc_%numGPUs);      
+//printf("Hi i am rank %d Setting my GPUs to %d !\n",iproc_, iproc_%numGPUs);      
       if (ierr != cudaSuccess) 
  	throw std::runtime_error("Error setting GPU device for " + std::to_string(iproc_));
-      
-      YAML::Node linsys = inpfile_["linear_system"];
-      std::string mat_format = get_optional<std::string>(linsys, "type", "matrix_market") ;
-
+ #endif     
       if (mat_format == "matrix_market") {
         load_matrix_market();
       } else if (mat_format == "hypre_ij") {
@@ -82,7 +83,7 @@ printf("Hi i am rank %d Setting my GPUs to %d !\n",iproc_, iproc_%numGPUs);
       } else {
         throw std::runtime_error("Invalid linear system format option: " + mat_format);
       }
-
+//if GPUs set here than it FAILS!
       if (linsys["write_outputs"])
         outputSystem_ = linsys["write_outputs"].as<bool>();
 
@@ -404,7 +405,7 @@ MPI_Barrier(comm_);
         timers_.emplace_back("Preconditioner setup", setup.count());
         timers_.emplace_back("Solve", solve.count());
       }
-
+solverDestroyPtr_(solver_);
       solveComplete_ = true;
    }
 
@@ -437,7 +438,7 @@ MPI_Barrier(comm_);
 
       if (!solveComplete_)
         throw std::runtime_error("Solve was not called before check_solution");
- HYPRE_IJVectorCopyDataGPUtoCPU(sln_);
+ //HYPRE_IJVectorCopyDataGPUtoCPU(sln_);
       auto start = std::chrono::system_clock::now();
       double sol1, sol2, diff;
       double maxerr = std::numeric_limits<double>::lowest();
@@ -680,15 +681,15 @@ MPI_Barrier(comm_);
 
       HYPRE_IJMatrixAssemble(mat_);
       HYPRE_IJVectorAssemble(rhs_);
- MPI_Barrier(comm_);
-    HYPRE_IJMatrixCopyCPUtoGPU(mat_);
-    MPI_Barrier(comm_);
+// MPI_Barrier(comm_);
+  // HYPRE_IJMatrixCopyCPUtoGPU(mat_);
+    //MPI_Barrier(comm_);
      
 
 
  HYPRE_IJVectorAssemble(sln_);
-   HYPRE_IJVectorCopyDataCPUtoGPU(rhs_);
-    HYPRE_IJVectorCopyDataCPUtoGPU(sln_);
+   //HYPRE_IJVectorCopyDataCPUtoGPU(rhs_);
+    //HYPRE_IJVectorCopyDataCPUtoGPU(sln_);
 
 
       HYPRE_IJMatrixGetObject(mat_, (void**)&parMat_);
