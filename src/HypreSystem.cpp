@@ -10,7 +10,7 @@
 #include "HYPRE.h"
 #include "HYPRE_config.h"
 
-#define debugMode 0
+#define debugMode 1
 extern "C"
 {
 #include "mmio.h"
