@@ -18,6 +18,9 @@ find_library(CUDA_NVTX_LIBRARY
   HINTS ${CUDA_TOOLKIT_ROOT_DIR}
   PATH_SUFFIXES lib)
 
+add_definitions(-DHAVE_CUDA)
+
+
 find_package(HYPRE REQUIRED)
 include_directories(SYSTEM ${HYPRE_INCLUDE_DIRS})
 

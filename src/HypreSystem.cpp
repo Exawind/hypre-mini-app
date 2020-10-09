@@ -24,8 +24,6 @@ extern "C"
 #include <sstream>
 #include <string.h>
 
-#include <cuda_runtime_api.h>
-
 namespace nalu {
 
   namespace {
@@ -52,19 +50,45 @@ namespace nalu {
     MPI_Comm_size(comm, &nproc_);
   }
 
+  HypreSystem::~HypreSystem()
+  {
+    if (rhs_) HYPRE_IJVectorDestroy(rhs_);
+    if (sln_) HYPRE_IJVectorDestroy(sln_);
+    if (slnRef_) HYPRE_IJVectorDestroy(slnRef_);
+    if (mat_) HYPRE_IJMatrixDestroy(mat_);
+    if (solver_) solverDestroyPtr_(solver_);
+    if (precond_) precondDestroyPtr_(precond_);
+  }
+
+
+  void HypreSystem::cleanup()
+  {
+    if (rhs_) HYPRE_IJVectorDestroy(rhs_); rhs_=NULL;
+    if (sln_) HYPRE_IJVectorDestroy(sln_); sln_=NULL;
+    if (slnRef_) HYPRE_IJVectorDestroy(slnRef_); slnRef_=NULL;
+    if (mat_) HYPRE_IJMatrixDestroy(mat_); mat_=NULL;
+    if (solver_) solverDestroyPtr_(solver_); solver_=NULL;
+    if (precond_) precondDestroyPtr_(precond_); precond_=NULL;
+    return;
+  }
+
   void
     HypreSystem::load()
     {
+#ifdef HAVE_CUDA
+      int count, device;
+      cudaGetDeviceCount(&count);
+      cudaSetDevice(iproc_ % count);
+      cudaGetDevice(&device);
+  
+      size_t free, total;
+      cudaMemGetInfo(&free, &total);
 
-      cudaError_t ierr;
-      int numGPUs;
-
-      ierr = cudaGetDeviceCount(&numGPUs);
-      if (ierr != cudaSuccess)
-	throw std::runtime_error("Error getting GPU count");
-      ierr = cudaSetDevice(iproc_ % numGPUs);
-      if (ierr != cudaSuccess) 
- 	throw std::runtime_error("Error setting GPU device for " + std::to_string(iproc_));
+      int rank;
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+      printf("\trank=%d : %s %s %d : device=%d of %d : free memory=%1.8g GB, total memory=%1.8g GB\n",
+	     rank,__FUNCTION__,__FILE__,__LINE__,device,count,free/1.e9,total/1.e9);
+#endif
       
       YAML::Node linsys = inpfile_["linear_system"];
       std::string mat_format = get_optional<std::string>(linsys, "type", "matrix_market") ;
@@ -526,7 +550,6 @@ std::cout<<"METHOD IS "<<method<<'\n';
       HYPRE_Int ilower, iupper;
       HYPRE_Int irow;
       double value;
-      int ret;
 
       for (int ii=iproc_; ii < nfiles; ii+=nproc_) {
         FILE* fh;
@@ -545,15 +568,14 @@ std::cout<<"METHOD IS "<<method<<'\n';
         HYPRE_Int numrows = (iupper - ilower) + 1;
         for (HYPRE_Int j=0; j < numrows; j++) {
 #ifdef HYPRE_BIGINT
-          ret = fscanf(fh, "%lld%*[ \t]%le\n", &irow, &value);
+          int ret = fscanf(fh, "%lld%*[ \t]%le\n", &irow, &value);
 #else
-          ret = fscanf(fh, "%d%*[ \t]%le\n", &irow, &value);
+          int ret = fscanf(fh, "%d%*[ \t]%le\n", &irow, &value);
 #endif
           HYPRE_IJVectorAddToValues(vec, 1, &irow, &value);
         }
         fclose(fh);
       }
-
       MPI_Barrier(comm_);
       auto stop = std::chrono::system_clock::now();
       std::chrono::duration<double> elapsed = stop - start;
@@ -611,7 +633,7 @@ std::cout<<"METHOD IS "<<method<<'\n';
     {
       auto start = std::chrono::system_clock::now();
       if (iproc_ == 0) {
-        std::cout << "Initializing data HYPRE structures... ";
+        std::cout << "Initializing data HYPRE structures... " << std::endl;
       }
 
       HYPRE_IJMatrixCreate(comm_, iLower_, iUpper_, iLower_, iUpper_, &mat_);
@@ -632,7 +654,7 @@ std::cout<<"METHOD IS "<<method<<'\n';
       HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &slnRef_);
       HYPRE_IJVectorSetObjectType(slnRef_, HYPRE_PARCSR);
       HYPRE_IJVectorInitialize(slnRef_);
-      HYPRE_IJVectorGetObject(sln_, (void**)&parSlnRef_);
+      HYPRE_IJVectorGetObject(slnRef_, (void**)&parSlnRef_);
 
       HYPRE_IJMatrixSetConstantValues(mat_, 0.0);
       HYPRE_ParVectorSetConstantValues(parRhs_, 0.0);
@@ -653,7 +675,7 @@ std::cout<<"METHOD IS "<<method<<'\n';
     {
       auto start = std::chrono::system_clock::now();
       if (iproc_ == 0) {
-        std::cout << "Assembling data HYPRE structures... ";
+        std::cout << "Assembling data HYPRE structures...\n";
       }
 
       if (needFinalize_) {
@@ -676,7 +698,7 @@ std::cout<<"METHOD IS "<<method<<'\n';
 
       if (checkSolution_) {
         HYPRE_IJVectorAssemble(slnRef_);
-        HYPRE_IJVectorGetObject(sln_, (void**)&(parSlnRef_));
+        HYPRE_IJVectorGetObject(slnRef_, (void**)&(parSlnRef_));
       }
 
       MPI_Barrier(comm_);

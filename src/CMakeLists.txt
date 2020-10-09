@@ -1,4 +1,3 @@
-
 add_executable(hypre_app
   mmio.c
   HypreSystem.cpp
@@ -15,6 +14,7 @@ target_link_libraries(hypre_app
   ${MPI_CXX_LIBRARIES}
   ${MPI_C_LIBRARIES}
   ${CUDA_cusparse_LIBRARY}
+  ${CUDA_curand_LIBRARY}
   ${CUDA_LIBRARIES}
   ${CUDA_CUBLAS_LIBRARIES}
   ${CUDA_NVTX_LIBRARY}

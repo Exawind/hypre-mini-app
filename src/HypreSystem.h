@@ -1,8 +1,12 @@
 #ifndef HYPRESYSTEM_H
 #define HYPRESYSTEM_H
 
+#if defined(HAVE_CUDA)
+#include <cuda_runtime_api.h>
+#endif
+
 #include "mpi.h"
-#include "HYPRE_utilities.h"
+//#include "HYPRE_utilities.h"
 #include "HYPRE_IJ_mv.h"
 #include "HYPRE_parcsr_ls.h"
 #include "HYPRE_parcsr_mv.h"
@@ -22,9 +26,13 @@ class HypreSystem
 public:
     HypreSystem(MPI_Comm, YAML::Node&);
 
+    virtual ~HypreSystem();
+
     void load();
 
     void solve();
+
+    void cleanup();
 
     //! Output the HYPRE matrix, rhs and solution vectors
     void output_linear_system();
@@ -84,7 +92,8 @@ private:
 
     //! Setup GMRES
     void setup_gmres();
-void setup_cogmres();
+    void setup_cogmres();
+
     //! MPI Communicator object
     MPI_Comm comm_;
 

@@ -4,8 +4,6 @@
 
 #include "yaml-cpp/yaml.h"
 
-#include <cuda_runtime_api.h>
-
 #include <iostream>
 #include <chrono>
 
@@ -17,6 +15,9 @@ int main(int argc, char* argv[])
 
     auto start = std::chrono::system_clock::now();
 
+    /* call this immediately */
+    //HYPRE_Int ret = HYPRE_Init(argc, argv);
+    HYPRE_Int ret = HYPRE_Init();
 
     if (argc != 2) {
         std::cout << "ERROR!! Incorrect arguments passed to program." << std::endl
@@ -36,6 +37,9 @@ int main(int argc, char* argv[])
     linsys.output_linear_system();
     linsys.summarize_timers();
 
+    /* explictily clean up before hand so that cuda memcheck leak-check can work properly */
+    linsys.cleanup();
+
     MPI_Barrier(MPI_COMM_WORLD);
     auto stop = std::chrono::system_clock::now();
     std::chrono::duration<double> elapsed = stop - start;
@@ -43,5 +47,8 @@ int main(int argc, char* argv[])
         std::cout << "Total time: " << elapsed.count() << " seconds" << std::endl;
 
     MPI_Finalize();
+
+    /* Need this at the end so cuda memcheck leak-check can work properly */
+    cudaDeviceReset();
     return 0;
 }
