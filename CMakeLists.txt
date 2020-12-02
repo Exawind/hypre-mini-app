@@ -1,8 +1,8 @@
-
 cmake_minimum_required(VERSION 3.1)
-project(hypre_app CXX C CUDA)
-
+project(hypre_app CXX C)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+
+option(ENABLE_CUDA "Enable build targeting GPU" OFF)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,11 +12,15 @@ find_package(MPI REQUIRED)
 include_directories(SYSTEM ${MPI_C_INCLUDE_PATH})
 include_directories(SYSTEM ${MPI_CXX_INCLUDE_PATH})
 
+if (ENABLE_CUDA)
+enable_language(CUDA)
 find_package(CUDA REQUIRED)
 find_library(CUDA_NVTX_LIBRARY
   NAMES nvToolsExt
   HINTS ${CUDA_TOOLKIT_ROOT_DIR}
   PATH_SUFFIXES lib)
+add_definitions(-DHAVE_CUDA)
+endif()
 
 find_package(HYPRE REQUIRED)
 include_directories(SYSTEM ${HYPRE_INCLUDE_DIRS})
@@ -34,5 +38,7 @@ else()
   include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/deps/yaml-cpp/include/")
 endif()
 
+if (ENABLE_CUDA)
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "--relocatable-device-code=true ")
+endif()
 add_subdirectory(src)

@@ -4,8 +4,6 @@
 
 #include "yaml-cpp/yaml.h"
 
-#include <cuda_runtime_api.h>
-
 #include <iostream>
 #include <chrono>
 
@@ -14,6 +12,22 @@ int main(int argc, char* argv[])
     int iproc;
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &iproc);
+
+    HYPRE_Int ret = HYPRE_Init();
+
+#ifdef HAVE_CUDA
+    int count, device;
+    cudaGetDeviceCount(&count);
+    //cudaSetDevice(iproc_ % count);
+    cudaGetDevice(&device);
+    size_t free, total;
+    cudaMemGetInfo(&free, &total);
+    printf("\trank=%d : %s %s %d : device=%d of %d : free memory=%1.8g GB, total memory=%1.8g GB\n",
+	   iproc,__FUNCTION__,__FILE__,__LINE__,device,count,free/1.e9,total/1.e9);
+
+    hypre_HandleDefaultExecPolicy(hypre_handle()) = HYPRE_EXEC_DEVICE;
+    hypre_HandleSpgemmUseCusparse(hypre_handle()) = 0;
+#endif
 
     auto start = std::chrono::system_clock::now();
 
@@ -42,6 +56,14 @@ int main(int argc, char* argv[])
     if (iproc == 0)
         std::cout << "Total time: " << elapsed.count() << " seconds" << std::endl;
 
+#ifdef HAVE_CUDA
+    HYPRE_Finalize();
+#endif
+
     MPI_Finalize();
+#ifdef HAVE_CUDA
+    /* Need this at the end so cuda memcheck leak-check can work properly */
+    cudaDeviceReset();
+#endif
     return 0;
 }

@@ -1,4 +1,3 @@
-
 #include "HypreSystem.h"
 #include "HYPRE_IJ_mv.h"
 #include "HYPRE_parcsr_ls.h"
@@ -24,8 +23,6 @@ extern "C"
 #include <sstream>
 #include <string.h>
 
-#include <cuda_runtime_api.h>
-
 namespace nalu {
 
   namespace {
@@ -43,10 +40,8 @@ namespace nalu {
 
   HypreSystem::HypreSystem(
       MPI_Comm comm,
-      YAML::Node& inpfile
-      ) : comm_(comm),
-  inpfile_(inpfile),
-  rowFilled_(0)
+      YAML::Node& inpfile) : comm_(comm),
+			     inpfile_(inpfile)
   {
     MPI_Comm_rank(comm, &iproc_);
     MPI_Comm_size(comm, &nproc_);
@@ -55,17 +50,6 @@ namespace nalu {
   void
     HypreSystem::load()
     {
-
-      cudaError_t ierr;
-      int numGPUs;
-
-      ierr = cudaGetDeviceCount(&numGPUs);
-      if (ierr != cudaSuccess)
-	throw std::runtime_error("Error getting GPU count");
-      ierr = cudaSetDevice(iproc_ % numGPUs);
-      if (ierr != cudaSuccess) 
- 	throw std::runtime_error("Error setting GPU device for " + std::to_string(iproc_));
-      
       YAML::Node linsys = inpfile_["linear_system"];
       std::string mat_format = get_optional<std::string>(linsys, "type", "matrix_market") ;
 
@@ -95,119 +79,21 @@ namespace nalu {
         throw std::runtime_error("Invalid option for preconditioner provided"
             + preconditioner);
       }
-std::cout<<"METHOD IS "<<method<<'\n';
-      //      if (method == "gmres") {
       if (!method.compare( "gmres")){       
-        printf("using GMRES solver \n");       
+        if (iproc_ == 0) std::cout << "using GMRES solver" << std::endl;
         setup_gmres();
       } else if (!method.compare("boomeramg")) {
-        printf("using BOOMERANG solver\n");       
+        if (iproc_ == 0) std::cout << "using BOOMERANG solver" << std::endl;
         setup_boomeramg_solver();
       }
       else if (!method.compare("cogmres")){
-        printf("using CO-GMRES solver\n");       
+        if (iproc_ == 0) std::cout << "using CO-GMRES solver" << std::endl;
         setup_cogmres();
       }
       else {
         throw std::runtime_error("Invalid option for solver method provided: "
             + method);
       }
-    }
-
-    void HypreSystem::load_matrix_market()
-    {
-      YAML::Node linsys = inpfile_["linear_system"];
-
-      std::string matfile = linsys["matrix_file"].as<std::string>();
-      std::string rhsfile = linsys["rhs_file"].as<std::string>();
-
-      load_mm_matrix(matfile);
-      read_mm_vector(rhsfile, rhs_);
-
-      if (linsys["sln_file"]) {
-        std::string slnfile = linsys["sln_file"].as<std::string>();
-        checkSolution_ = true;
-        read_mm_vector(slnfile, slnRef_);
-      }
-
-      // Indicate that we need a check on missing rows and a final assemble call
-      needFinalize_ = true;
-    }
-
-    void HypreSystem::load_hypre_format()
-    {
-      YAML::Node linsys = inpfile_["linear_system"];
-      int nfiles = get_optional(linsys, "num_partitions", nproc_);
-
-      if (nfiles == nproc_)
-        load_hypre_native();
-      else {
-        std::string matfile = linsys["matrix_file"].as<std::string>();
-        std::string rhsfile = linsys["rhs_file"].as<std::string>();
-        determine_ij_system_sizes(matfile, nfiles);
-        init_ij_system();
-        read_ij_matrix(matfile, nfiles);
-        read_ij_vector(rhsfile, nfiles, rhs_);
-
-        if (linsys["sln_file"]) {
-          std::string slnfile = linsys["sln_file"].as<std::string>();
-          checkSolution_ = true;
-          read_ij_vector(slnfile, nfiles, slnRef_);
-        }
-        needFinalize_ = false;
-      }
-    }
-
-    void HypreSystem::load_hypre_native()
-    {
-      auto start = std::chrono::system_clock::now();
-      if (iproc_ == 0) {
-        std::cout << "Loading HYPRE IJ files... ";
-      }
-
-      YAML::Node linsys = inpfile_["linear_system"];
-
-      std::string matfile = linsys["matrix_file"].as<std::string>();
-      std::string rhsfile = linsys["rhs_file"].as<std::string>();
-
-      HYPRE_IJMatrixRead(matfile.c_str(), comm_, HYPRE_PARCSR, &mat_);
-      HYPRE_IJVectorRead(rhsfile.c_str(), comm_, HYPRE_PARCSR, &rhs_);
-
-      if (linsys["sln_file"]) {
-        std::string slnfile = linsys["sln_file"].as<std::string>();
-        checkSolution_ = true;
-        HYPRE_IJVectorRead(slnfile.c_str(), comm_, HYPRE_PARCSR, &slnRef_);
-      }
-
-      // Figure out local range
-      HYPRE_Int jlower, jupper;
-      HYPRE_IJMatrixGetLocalRange(mat_, &iLower_, &iUpper_, &jlower, &jupper);
-      numRows_ = (iUpper_ - iLower_ + 1);
-
-
-      // Initialize the solution vector
-      HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &sln_);
-      HYPRE_IJVectorSetObjectType(sln_, HYPRE_PARCSR);
-      HYPRE_IJVectorInitialize(sln_);
-      HYPRE_IJVectorGetObject(sln_, (void**)&parSln_);
-      HYPRE_ParVectorSetConstantValues(parSln_, 0.0);
-
-      // Indicate that the assemble has already been called by HYPRE API
-      needFinalize_ = false;
-
-      auto stop = std::chrono::system_clock::now();
-      std::chrono::duration<double> elapsed = stop - start;
-      if (iproc_ == 0)
-        std::cout << elapsed.count() << " seconds" << std::endl;
-
-      timers_.emplace_back("Load system", elapsed.count());
-
-      MPI_Barrier(comm_);
-      std::cout << "  Rank: " << std::setw(4) << iproc_ << ":: iLower = "
-        << std::setw(9) << iLower_ << "; iUpper = "
-        << std::setw(9) << iUpper_ << "; numRows = "
-        << numRows_ << std::endl;
-      MPI_Barrier(comm_);
     }
 
     void HypreSystem::setup_boomeramg_solver()
@@ -372,6 +258,89 @@ std::cout<<"METHOD IS "<<method<<'\n';
       solverSolvePtr_ = &HYPRE_ParCSRGMRESSolve;
     }
 
+    void HypreSystem::init_row_decomposition()
+    {
+      HYPRE_Int rowsPerProc = totalRows_ / nproc_;
+      HYPRE_Int remainder = totalRows_ % nproc_;
+
+      iLower_ = rowsPerProc * iproc_ + std::min<HYPRE_Int>(iproc_, remainder);
+      iUpper_ = rowsPerProc * (iproc_ + 1) + std::min<HYPRE_Int>(iproc_ + 1, remainder) - 1;
+      numRows_ = iUpper_ - iLower_ + 1;
+
+      std::cout << "  Rank: " << std::setw(4) << iproc_ << ":: iLower = "
+        << std::setw(9) << iLower_ << "; iUpper = "
+        << std::setw(9) << iUpper_ << "; numRows = "
+        << numRows_ << std::endl;
+    }
+
+    void HypreSystem::init_system()
+    {
+      auto start = std::chrono::system_clock::now();
+      if (iproc_ == 0)
+        std::cout << "Initializing data HYPRE structures... ";
+
+      HYPRE_IJMatrixCreate(comm_, iLower_, iUpper_, iLower_, iUpper_, &mat_);
+      HYPRE_IJMatrixSetObjectType(mat_, HYPRE_PARCSR);
+      HYPRE_IJMatrixInitialize(mat_);
+      HYPRE_IJMatrixGetObject(mat_, (void**)&parMat_);
+
+      HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &rhs_);
+      HYPRE_IJVectorSetObjectType(rhs_, HYPRE_PARCSR);
+      HYPRE_IJVectorInitialize(rhs_);
+      HYPRE_IJVectorGetObject(rhs_, (void**)&parRhs_);
+
+      HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &sln_);
+      HYPRE_IJVectorSetObjectType(sln_, HYPRE_PARCSR);
+      HYPRE_IJVectorInitialize(sln_);
+      HYPRE_IJVectorGetObject(sln_, (void**)&parSln_);
+
+      HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &slnRef_);
+      HYPRE_IJVectorSetObjectType(slnRef_, HYPRE_PARCSR);
+      HYPRE_IJVectorInitialize(slnRef_);
+      HYPRE_IJVectorGetObject(sln_, (void**)&parSlnRef_);
+
+      HYPRE_IJMatrixSetConstantValues(mat_, 0.0);
+      HYPRE_ParVectorSetConstantValues(parRhs_, 0.0);
+      HYPRE_ParVectorSetConstantValues(parSln_, 0.0);
+      HYPRE_ParVectorSetConstantValues(parSlnRef_, 0.0);
+
+      MPI_Barrier(comm_);
+      if (iproc_ == 0) {
+        auto stop = std::chrono::system_clock::now();
+        std::chrono::duration<double> elapsed = stop - start;
+        std::cout << elapsed.count() << " seconds" << std::endl;
+
+        timers_.emplace_back("Initialize system", elapsed.count());
+      }
+    }
+
+    void HypreSystem::finalize_system()
+    {
+      auto start = std::chrono::system_clock::now();
+      if (iproc_ == 0) {
+        std::cout << "Assembling data HYPRE structures... ";
+      }
+
+      HYPRE_IJMatrixAssemble(mat_);
+      HYPRE_IJVectorAssemble(rhs_);
+      HYPRE_IJVectorAssemble(sln_);
+      HYPRE_IJMatrixGetObject(mat_, (void**)&parMat_);
+      HYPRE_IJVectorGetObject(rhs_, (void**)&(parRhs_));
+      HYPRE_IJVectorGetObject(sln_, (void**)&(parSln_));
+
+      if (checkSolution_) {
+        HYPRE_IJVectorAssemble(slnRef_);
+        HYPRE_IJVectorGetObject(sln_, (void**)&(parSlnRef_));
+      }
+
+      MPI_Barrier(comm_);
+      if (iproc_ == 0) {
+        auto stop = std::chrono::system_clock::now();
+        std::chrono::duration<double> elapsed = stop - start;
+        std::cout << elapsed.count() << " seconds" << std::endl;
+        timers_.emplace_back("Finalize system", elapsed.count());
+      }
+    }
 
     void HypreSystem::solve()
     {
@@ -463,301 +432,182 @@ std::cout<<"METHOD IS "<<method<<'\n';
       }
     }
 
-    void HypreSystem::load_mm_matrix(std::string matfile)
+    /********************************************************************************/
+    /* Generic methods for building matrices/vectors for CUDA/CPU/... useable from  */
+    /* IJ or MM matrix formats                                                      */
+    /********************************************************************************/
+
+    void HypreSystem::hypre_matrix_set_values()
     {
-      // Scan the matrix and determine the sizes
-      determine_system_sizes(matfile);
-      MPI_Barrier(comm_);
+      if (iproc_==0)
+	std::cout << "Loading matrix into HYPRE_IJMatrix... ";
 
-      // Communicate matrix information to all processors
-      MPI_Bcast(&totalRows_, 1, MPI_INT, 0, comm_);
-
-      HYPRE_Int rowsPerProc = totalRows_ / nproc_;
-      HYPRE_Int remainder = totalRows_ % nproc_;
-
-      iLower_ = rowsPerProc * iproc_ + std::min<HYPRE_Int>(iproc_, remainder);
-      iUpper_ = rowsPerProc * (iproc_ + 1) + std::min<HYPRE_Int>(iproc_ + 1, remainder) - 1;
-      numRows_ = iUpper_ - iLower_ + 1;
-
-      std::cout << "  Rank: " << std::setw(4) << iproc_ << ":: iLower = "
-        << std::setw(9) << iLower_ << "; iUpper = "
-        << std::setw(9) << iUpper_ << "; numRows = "
-        << numRows_ << std::endl;
-      MPI_Barrier(comm_);
-
-      // Create HYPRE data structures
-      init_system();
-
-      // Initialize data
-      rowFilled_.resize(totalRows_);
-      std::fill(rowFilled_.begin(), rowFilled_.end(), 0);
-
-      // Populate the matrix (proc 0 only)
-      read_mm_matrix(matfile);
-      MPI_Barrier(comm_);
-
-      // Broadcast filled row information to all procs; need to handle missing rows
-      MPI_Bcast(rowFilled_.data(), totalRows_, MPI_INT, 0, comm_);
-    }
-
-    void HypreSystem::init_ij_system()
-    {
-      HYPRE_Int rowsPerProc = totalRows_ / nproc_;
-      HYPRE_Int remainder = totalRows_ % nproc_;
-
-      iLower_ = rowsPerProc * iproc_ + std::min<HYPRE_Int>(iproc_, remainder);
-      iUpper_ = rowsPerProc * (iproc_ + 1) + std::min<HYPRE_Int>(iproc_ + 1, remainder) - 1;
-      numRows_ = iUpper_ - iLower_ + 1;
-
-      std::cout << "  Rank: " << std::setw(4) << iproc_ << ":: iLower = "
-        << std::setw(9) << iLower_ << "; iUpper = "
-        << std::setw(9) << iUpper_ << "; numRows = "
-        << numRows_ << std::endl;
-      MPI_Barrier(comm_);
-
-      // Create HYPRE data structures
-      init_system();
-    }
-
-    void HypreSystem::read_ij_vector(std::string vecfile, int nfiles, HYPRE_IJVector& vec)
-    {
       auto start = std::chrono::system_clock::now();
 
-      HYPRE_Int ilower, iupper;
-      HYPRE_Int irow;
-      double value;
-      int ret;
+      int nnz_this_rank = rows_.size();
 
-      for (int ii=iproc_; ii < nfiles; ii+=nproc_) {
-        FILE* fh;
-        std::ostringstream suffix;
-        suffix << vecfile << "." << std::setw(5) << std::setfill('0') << ii;
+#ifdef HAVE_CUDA
+      HYPRE_Int * d_cols, * d_rows;
+      double * d_values;
 
-        if ((fh = fopen(suffix.str().c_str(), "r")) == NULL) {
-          throw std::runtime_error("Cannot open vector file: " + suffix.str());
-        }
+      cudaMallocManaged((void**)&d_rows, nnz_this_rank*sizeof(HYPRE_Int));
+      cudaMallocManaged((void**)&d_cols, nnz_this_rank*sizeof(HYPRE_Int));
+      cudaMallocManaged((void**)&d_values, nnz_this_rank*sizeof(double));
 
-#ifdef HYPRE_BIGINT
-        fscanf(fh, "%lld %lld\n", &ilower, &iupper);
+      memcpy(d_rows, rows_.data(), nnz_this_rank*sizeof(HYPRE_Int));
+      memcpy(d_cols, cols_.data(), nnz_this_rank*sizeof(HYPRE_Int));
+      memcpy(d_values, vals_.data(), nnz_this_rank*sizeof(double));
+
+      /* Call this on UVM data */
+      HYPRE_IJMatrixSetValues2(mat_, nnz_this_rank, NULL, d_rows, NULL, d_cols, d_values);
+      cudaDeviceSynchronize();
+
+      cudaFree(d_rows);
+      cudaFree(d_cols);
+      cudaFree(d_values);
 #else
-        fscanf(fh, "%d %d\n", &ilower, &iupper);
+      HYPRE_IJMatrixSetValues2(mat_, nnz_this_rank, NULL, rows_.data(), NULL, cols_.data(), vals_.data());
 #endif
-        HYPRE_Int numrows = (iupper - ilower) + 1;
-        for (HYPRE_Int j=0; j < numrows; j++) {
-#ifdef HYPRE_BIGINT
-          ret = fscanf(fh, "%lld%*[ \t]%le\n", &irow, &value);
-#else
-          ret = fscanf(fh, "%d%*[ \t]%le\n", &irow, &value);
-#endif
-          HYPRE_IJVectorAddToValues(vec, 1, &irow, &value);
-        }
-        fclose(fh);
-      }
 
-      MPI_Barrier(comm_);
       auto stop = std::chrono::system_clock::now();
       std::chrono::duration<double> elapsed = stop - start;
-      timers_.emplace_back("Read vector", elapsed.count());
+      if (iproc_ == 0)
+	std::cout << elapsed.count() << " seconds" << std::endl;
+      timers_.emplace_back("Build HYPRE matrix", elapsed.count());
     }
 
-    void HypreSystem::read_ij_matrix(std::string matfile, int nfiles)
+    void HypreSystem::hypre_vector_set_values(HYPRE_IJVector& vec)
     {
+      if (iproc_==0)
+	std::cout << "Loading matrix into HYPRE_IJVector... ";
+
       auto start = std::chrono::system_clock::now();
 
-      HYPRE_Int ilower, iupper, jlower, jupper;
-      HYPRE_Int irow, icol;
-      HYPRE_Int ncols = 1;
-      double value;
-      int ret;
+#ifdef HAVE_CUDA
+      HYPRE_Int * d_indices;
+      double * d_values;
+      cudaMallocManaged((void**)&d_values, vector_values_.size()*sizeof(double));
+      cudaMallocManaged((void**)&d_indices, vector_indices_.size()*sizeof(HYPRE_Int));
 
-      for (int ii=iproc_; ii < nfiles; ii+=nproc_) {
-        FILE* fh;
-        std::ostringstream suffix;
-        suffix << matfile << "." << std::setw(5) << std::setfill('0') << ii;
+      memcpy(d_values, vector_values_.data(), vector_values_.size()*sizeof(double));
+      memcpy(d_indices, vector_indices_.data(), vector_indices_.size()*sizeof(HYPRE_Int));
 
-        if ((fh = fopen(suffix.str().c_str(), "r")) == NULL) {
-          throw std::runtime_error("Cannot open matrix file: " + suffix.str());
-        }
+      /* Call this on UVM data */
+      HYPRE_IJVectorSetValues(vec, iUpper_-iLower_+1, d_indices, d_values);
+      cudaDeviceSynchronize();
 
-#ifdef HYPRE_BIGINT
-        fscanf(fh, "%lld %lld %lld %lld\n", &ilower, &iupper, &jlower, &jupper);
+      cudaFree(d_values);
+      cudaFree(d_indices);
 #else
-        fscanf(fh, "%d %d %d %d\n", &ilower, &iupper, &jlower, &jupper);
+      HYPRE_IJVectorSetValues(vec, iUpper_-iLower_+1, vector_indices_.data(), vector_values_.data());
 #endif
 
-#ifdef HYPRE_BIGINT
-        ret = fscanf(fh, "%lld %lld%*[ \t]%le\n", &irow, &icol, &value);
-#else
-        ret = fscanf(fh, "%d %d%*[ \t]%le\n", &irow, &icol, &value);
-#endif
-        while (ret != EOF) {
-          HYPRE_IJMatrixAddToValues(mat_, 1, &ncols, &irow, &icol, &value);
-#ifdef HYPRE_BIGINT
-          ret = fscanf(fh, "%lld %lld%*[ \t]%le\n", &irow, &icol, &value);
-#else
-          ret = fscanf(fh, "%d %d%*[ \t]%le\n", &irow, &icol, &value);
-#endif
-        }
-        fclose(fh);
-      }
-
-      MPI_Barrier(comm_);
       auto stop = std::chrono::system_clock::now();
       std::chrono::duration<double> elapsed = stop - start;
-      timers_.emplace_back("Read matrix", elapsed.count());
+      if (iproc_ == 0)
+	std::cout << elapsed.count() << " seconds" << std::endl;
+      timers_.emplace_back("Build HYPRE vector", elapsed.count());
     }
 
-    void HypreSystem::init_system()
+    /********************************************************************************/
+    /*                               HYPRE IJ Format                                */
+    /********************************************************************************/
+
+    void HypreSystem::load_hypre_format()
     {
+      YAML::Node linsys = inpfile_["linear_system"];
+      int nfiles = get_optional(linsys, "num_partitions", nproc_);
+      bool useCuda=false;
+
+#ifdef HAVE_CUDA
+      // This is hack to prevent the cuda build from using the native load procedure
+      useCuda=true;
+#endif
+      if (nfiles == nproc_ && !useCuda)
+        load_hypre_native();
+      else {
+        std::string matfile = linsys["matrix_file"].as<std::string>();
+        std::string rhsfile = linsys["rhs_file"].as<std::string>();
+
+	// Scan the matrix and determine the sizes
+	determine_ij_system_sizes(matfile, nfiles);
+	
+	// generic method for IJ and MM
+	init_row_decomposition();
+	
+	// Create HYPRE data structures
+	init_system();
+
+	// build matrices and vectors
+        build_ij_matrix(matfile, nfiles);
+        build_ij_vector(rhsfile, nfiles, rhs_);
+     
+        if (linsys["sln_file"]) {
+          std::string slnfile = linsys["sln_file"].as<std::string>();
+          checkSolution_ = true;
+          build_ij_vector(slnfile, nfiles, slnRef_);
+        }
+      }
+    }
+
+    /*******************
+     *
+     *******************/
+    void HypreSystem::load_hypre_native()
+    {
+      MPI_Barrier(comm_);
       auto start = std::chrono::system_clock::now();
       if (iproc_ == 0) {
-        std::cout << "Initializing data HYPRE structures... ";
+        std::cout << "Loading HYPRE IJ files... ";
       }
 
-      HYPRE_IJMatrixCreate(comm_, iLower_, iUpper_, iLower_, iUpper_, &mat_);
-      HYPRE_IJMatrixSetObjectType(mat_, HYPRE_PARCSR);
-      HYPRE_IJMatrixInitialize(mat_);
-      HYPRE_IJMatrixGetObject(mat_, (void**)&parMat_);
+      YAML::Node linsys = inpfile_["linear_system"];
 
-      HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &rhs_);
-      HYPRE_IJVectorSetObjectType(rhs_, HYPRE_PARCSR);
-      HYPRE_IJVectorInitialize(rhs_);
-      HYPRE_IJVectorGetObject(rhs_, (void**)&parRhs_);
+      std::string matfile = linsys["matrix_file"].as<std::string>();
+      std::string rhsfile = linsys["rhs_file"].as<std::string>();
 
+      HYPRE_IJMatrixRead(matfile.c_str(), comm_, HYPRE_PARCSR, &mat_);
+      HYPRE_IJVectorRead(rhsfile.c_str(), comm_, HYPRE_PARCSR, &rhs_);
+
+      if (linsys["sln_file"]) {
+        std::string slnfile = linsys["sln_file"].as<std::string>();
+        checkSolution_ = true;
+        HYPRE_IJVectorRead(slnfile.c_str(), comm_, HYPRE_PARCSR, &slnRef_);
+      }
+
+      // Figure out local range
+      HYPRE_Int jlower, jupper;
+      HYPRE_IJMatrixGetLocalRange(mat_, &iLower_, &iUpper_, &jlower, &jupper);
+      numRows_ = (iUpper_ - iLower_ + 1);
+
+      // Initialize the solution vector
       HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &sln_);
       HYPRE_IJVectorSetObjectType(sln_, HYPRE_PARCSR);
       HYPRE_IJVectorInitialize(sln_);
       HYPRE_IJVectorGetObject(sln_, (void**)&parSln_);
-
-      HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &slnRef_);
-      HYPRE_IJVectorSetObjectType(slnRef_, HYPRE_PARCSR);
-      HYPRE_IJVectorInitialize(slnRef_);
-      HYPRE_IJVectorGetObject(sln_, (void**)&parSlnRef_);
-
-      HYPRE_IJMatrixSetConstantValues(mat_, 0.0);
-      HYPRE_ParVectorSetConstantValues(parRhs_, 0.0);
       HYPRE_ParVectorSetConstantValues(parSln_, 0.0);
-      HYPRE_ParVectorSetConstantValues(parSlnRef_, 0.0);
-
-      MPI_Barrier(comm_);
-      if (iproc_ == 0) {
-        auto stop = std::chrono::system_clock::now();
-        std::chrono::duration<double> elapsed = stop - start;
-        std::cout << elapsed.count() << " seconds" << std::endl;
-
-        timers_.emplace_back("Initialize system", elapsed.count());
-      }
-    }
-
-    void HypreSystem::finalize_system()
-    {
-      auto start = std::chrono::system_clock::now();
-      if (iproc_ == 0) {
-        std::cout << "Assembling data HYPRE structures... ";
-      }
-
-      if (needFinalize_) {
-        HYPRE_Int nrows = 1;
-        HYPRE_Int ncols = 1;
-        double setval = 1.0; // Set diagonal to 1 for missing rows
-        for (HYPRE_Int i=iLower_; i < iUpper_; i++) {
-          if (rowFilled_[i] > 0) continue;
-          HYPRE_IJMatrixSetValues(mat_, nrows, &ncols, &i, &i, &setval);
-        }
-
-      }
-
-      HYPRE_IJMatrixAssemble(mat_);
-      HYPRE_IJVectorAssemble(rhs_);
-      HYPRE_IJVectorAssemble(sln_);
-      HYPRE_IJMatrixGetObject(mat_, (void**)&parMat_);
-      HYPRE_IJVectorGetObject(rhs_, (void**)&(parRhs_));
-      HYPRE_IJVectorGetObject(sln_, (void**)&(parSln_));
-
-      if (checkSolution_) {
-        HYPRE_IJVectorAssemble(slnRef_);
-        HYPRE_IJVectorGetObject(sln_, (void**)&(parSlnRef_));
-      }
-
-      MPI_Barrier(comm_);
-      if (iproc_ == 0) {
-        auto stop = std::chrono::system_clock::now();
-        std::chrono::duration<double> elapsed = stop - start;
-        std::cout << elapsed.count() << " seconds" << std::endl;
-
-        timers_.emplace_back("Finalize system", elapsed.count());
-      }
-    }
-
-    void HypreSystem::read_mm_matrix(std::string matfile)
-    {
-      if (iproc_ != 0) return;
-      std::cout << "Loading matrix into HYPRE_IJMatrix... ";
-
-      auto start = std::chrono::system_clock::now();
-
-      // Set up row order array that will be used later with RHS and solution files
-      rowOrder_.resize(totalRows_);
-
-      FILE* fh;
-      MM_typecode matcode;
-      int err;
-      int msize, nsize, nnz;
-      HYPRE_Int irow, icol;
-      double value;
-
-      if ((fh = fopen(matfile.c_str(), "r")) == NULL) {
-        throw std::runtime_error("Cannot open matrix file: " + matfile);
-      }
-
-      err = mm_read_banner(fh, &matcode);
-      if (err != 0)
-        throw std::runtime_error("Cannot read matrix banner");
-
-      if (!mm_is_valid(matcode) || !mm_is_coordinate(matcode))
-        throw std::runtime_error("Invalid matrix market file encountered");
-
-      err = mm_read_mtx_crd_size(fh, &msize, &nsize, &nnz);
-      if (err != 0)
-        throw std::runtime_error("Cannot read matrix sizes in file: " + matfile);
-
-      bool isSymmetric = mm_is_symmetric(matcode);
-      HYPRE_Int seenRow = totalRows_ + 10;
-      HYPRE_Int seenCol = totalRows_ + 10;
-      HYPRE_Int idx = 0;
-      HYPRE_Int ncols = 1;
-      for (int i=0; i < nnz; i++) {
-#ifdef HYPRE_BIGINT
-        fscanf(fh, "%lld %lld %lf\n", &irow, &icol, &value);
-#else
-        fscanf(fh, "%d %d %lf\n", &irow, &icol, &value);
-#endif
-        irow--;
-        icol--;
-        HYPRE_IJMatrixAddToValues(mat_, 1, &ncols, &irow, &icol, &value);
-        rowFilled_[irow] = 1;
-        if (isSymmetric && (irow != icol)) {
-          HYPRE_IJMatrixAddToValues(mat_, 1, &ncols, &icol, &irow, &value);
-          rowFilled_[icol] = 1;
-        }
-
-        if ((irow != seenRow) && (icol != seenCol)) {
-          rowOrder_[idx++] = irow;
-          seenRow = irow;
-          seenCol = icol;
-        }
-      }
 
       auto stop = std::chrono::system_clock::now();
       std::chrono::duration<double> elapsed = stop - start;
-      std::cout << elapsed.count() << " seconds" << std::endl;
-      timers_.emplace_back("Read matrix", elapsed.count());
+      if (iproc_ == 0)
+        std::cout << elapsed.count() << " seconds" << std::endl;
 
-      fclose(fh);
+      timers_.emplace_back("Load system", elapsed.count());
+
+      MPI_Barrier(comm_);
+      std::cout << "  Rank: " << std::setw(4) << iproc_ << ":: iLower = "
+        << std::setw(9) << iLower_ << "; iUpper = "
+        << std::setw(9) << iUpper_ << "; numRows = "
+        << numRows_ << std::endl;
+      MPI_Barrier(comm_);
     }
 
+    /*******************
+     *
+     *******************/
     void HypreSystem::determine_ij_system_sizes(std::string matfile, int nfiles)
     {
+      MPI_Barrier(comm_);
       auto start = std::chrono::system_clock::now();
 
       HYPRE_Int ilower, iupper, jlower, jupper;
@@ -789,15 +639,213 @@ std::cout<<"METHOD IS "<<method<<'\n';
       MPI_Allreduce(&imax, &gmax, 1, HYPRE_MPI_INT, MPI_MAX, comm_);
       totalRows_ = (gmax - gmin) + 1;
 
+      MPI_Barrier(comm_);
       auto stop = std::chrono::system_clock::now();
       std::chrono::duration<double> elapsed = stop - start;
-      std::cout << elapsed.count() << " seconds" << std::endl;
-      timers_.emplace_back("Scan matrix", elapsed.count());
+      if (iproc_==0) 
+	std::cout << elapsed.count() << " seconds" << std::endl;
+      timers_.emplace_back("IJ : determine system size", elapsed.count());
     }
 
-    void HypreSystem::determine_system_sizes(std::string matfile)
+    /*******************
+     *
+     *******************/
+    void HypreSystem::build_ij_matrix(std::string matfile, int nfiles)
     {
-      if (iproc_ != 0) return;
+      MPI_Barrier(comm_);
+      auto start = std::chrono::system_clock::now();
+
+      // read the files
+      if (iproc_ == 0)
+        std::cout << "Reading " << nfiles << " HYPRE IJ Matrix files... " << std::endl;
+
+      HYPRE_Int ilower, iupper, jlower, jupper;
+      HYPRE_Int irow, icol;
+      double value;
+
+      /* store the loaded matrix into these vectors */
+      rows_.resize(0);
+      cols_.resize(0);
+      vals_.resize(0);
+
+      // Need to loop over all the files
+      for (int ii=0; ii < nfiles; ii++) {
+        FILE* fh;
+        std::ostringstream suffix;
+        suffix << matfile << "." << std::setw(5) << std::setfill('0') << ii;
+
+        if ((fh = fopen(suffix.str().c_str(), "r")) == NULL) {
+          throw std::runtime_error("Cannot open matrix file: " + suffix.str());
+        }
+
+#ifdef HYPRE_BIGINT
+        fscanf(fh, "%lld %lld %lld %lld\n", &ilower, &iupper, &jlower, &jupper);
+#else
+        fscanf(fh, "%d %d %d %d\n", &ilower, &iupper, &jlower, &jupper);
+#endif
+
+	// need the + 1 so that the upper boundary are inclusive
+	int overlap = std::max(0, std::min(iUpper_+1, iupper+1) - std::max(iLower_, ilower));
+        if (overlap) {
+#ifdef HYPRE_BIGINT
+	  while (fscanf(fh, "%lld %lld%*[ \t]%le\n", &irow, &icol, &value) != EOF) {
+#else
+	  while (fscanf(fh, "%d %d%*[ \t]%le\n", &irow, &icol, &value) != EOF) {
+#endif
+            if (irow>=iLower_ && irow<=iUpper_) {
+              rows_.push_back(irow);
+	      cols_.push_back(icol);
+	      vals_.push_back(value);
+	    }
+	  }
+	}
+        fclose(fh);
+      }
+
+      // Set the values of the matrix
+      hypre_matrix_set_values();
+
+      MPI_Barrier(comm_);
+      auto stop = std::chrono::system_clock::now();
+      std::chrono::duration<double> elapsed = stop - start;
+      timers_.emplace_back("IJ : read and build matrix", elapsed.count());
+    }
+
+    /*******************
+     *
+     *******************/
+    void HypreSystem::build_ij_vector(std::string vecfile, int nfiles, HYPRE_IJVector& vec)
+    {
+      MPI_Barrier(comm_);
+      auto start = std::chrono::system_clock::now();
+      if (iproc_ == 0)
+        std::cout << "Reading " << nfiles << " HYPRE IJ Vector files... " << std::endl;
+
+      HYPRE_Int ilower, iupper;
+      HYPRE_Int irow;
+      double value;
+
+      /* resize these */
+      vector_indices_.resize(0);
+      vector_values_.resize(0);
+
+      for (int ii=0; ii < nfiles; ii++) {
+        FILE* fh;
+        std::ostringstream suffix;
+        suffix << vecfile << "." << std::setw(5) << std::setfill('0') << ii;
+
+        if ((fh = fopen(suffix.str().c_str(), "r")) == NULL) {
+          throw std::runtime_error("Cannot open vector file: " + suffix.str());
+        }
+
+#ifdef HYPRE_BIGINT
+        fscanf(fh, "%lld %lld\n", &ilower, &iupper);
+#else
+        fscanf(fh, "%d %d\n", &ilower, &iupper);
+#endif
+
+	// need the + 1 so that the upper boundary are inclusive
+	int overlap = std::max(0, std::min(iUpper_+1, iupper+1) - std::max(iLower_, ilower));
+        if (overlap) {
+#ifdef HYPRE_BIGINT
+          while (fscanf(fh, "%lld%*[ \t]%le\n", &irow, &value) != EOF) {
+#else
+          while (fscanf(fh, "%d%*[ \t]%le\n", &irow, &value) != EOF) {
+#endif
+	    vector_indices_.push_back(irow);
+	    vector_values_.push_back(value);
+	  }
+	}
+        fclose(fh);
+      }
+
+      /* Build the vector */
+      hypre_vector_set_values(vec);
+
+      MPI_Barrier(comm_);
+      auto stop = std::chrono::system_clock::now();
+      std::chrono::duration<double> elapsed = stop - start;
+      timers_.emplace_back("IJ : read and build vector", elapsed.count());
+    }
+
+    /********************************************************************************/
+    /*                          Matrix Market Format                                */
+    /********************************************************************************/
+
+    void HypreSystem::load_matrix_market()
+    {
+      YAML::Node linsys = inpfile_["linear_system"];
+
+      std::string matfile = linsys["matrix_file"].as<std::string>();
+      std::string rhsfile = linsys["rhs_file"].as<std::string>();
+
+      // Scan the matrix and determine the sizes
+      determine_mm_system_sizes(matfile);
+
+      // generic method for IJ and MM
+      init_row_decomposition();
+
+      // Create HYPRE data structures
+      init_system();
+
+      // Build matrices and vectors
+      build_mm_matrix(matfile);
+      build_mm_vector(rhsfile, rhs_);
+
+      if (linsys["sln_file"]) {
+        std::string slnfile = linsys["sln_file"].as<std::string>();
+        checkSolution_ = true;
+        build_mm_vector(slnfile, slnRef_);
+      }
+    }
+
+    /*******************
+     *
+     *******************/
+    void HypreSystem::determine_mm_system_sizes(std::string matfile)
+    {
+      MPI_Barrier(comm_);
+      auto start = std::chrono::system_clock::now();
+
+      FILE* fh;
+      MM_typecode matcode;
+      int err;
+      int msize, nsize, nnz;
+
+      if ((fh = fopen(matfile.c_str(), "r")) == NULL) {
+        throw std::runtime_error("Cannot open matrix file: " + matfile);
+      }
+
+      err = mm_read_banner(fh, &matcode);
+      if (err != 0)
+        throw std::runtime_error("Cannot read matrix banner");
+
+      if (!mm_is_valid(matcode) || !mm_is_coordinate(matcode))
+        throw std::runtime_error("Invalid matrix market file encountered");
+
+      err = mm_read_mtx_crd_size(fh, &msize, &nsize, &nnz);
+      if (err != 0)
+        throw std::runtime_error("Cannot read matrix sizes in file: " + matfile);
+
+      totalRows_ = M_ = msize;
+      N_ = nsize;
+      nnz_= nnz;
+
+      MPI_Barrier(comm_);
+      auto stop = std::chrono::system_clock::now();
+      std::chrono::duration<double> elapsed = stop - start;
+      if (iproc_==0)
+	std::cout << elapsed.count() << " seconds" << std::endl;
+      timers_.emplace_back("Matrix market : determine system size", elapsed.count());
+      fclose(fh);
+    }
+  
+    /*******************
+     *
+     *******************/
+    void HypreSystem::build_mm_matrix(std::string matfile)
+    {
+      MPI_Barrier(comm_);
       auto start = std::chrono::system_clock::now();
 
       FILE* fh;
@@ -822,12 +870,9 @@ std::cout<<"METHOD IS "<<method<<'\n';
       if (err != 0)
         throw std::runtime_error("Cannot read matrix sizes in file: " + matfile);
 
-      M_ = msize;
-      N_ = nsize;
-      nnz_= nnz;
-
-      std::cout << "Scanning matrix structure... ";
-      totalRows_ = 0;
+      rows_.resize(0);
+      cols_.resize(0);
+      vals_.resize(0);
       for (int i=0; i < nnz; i++)
       {
 #ifdef HYPRE_BIGINT
@@ -835,25 +880,35 @@ std::cout<<"METHOD IS "<<method<<'\n';
 #else
         fscanf(fh, "%d %d %lf\n", &irow, &icol, &value);
 #endif
-        totalRows_ = std::max(totalRows_, irow);
+
+	irow--;
+	icol--;
+
+	if (irow>=iLower_ && irow<=iUpper_) {
+	  rows_.push_back(irow);
+	  cols_.push_back(icol);
+	  vals_.push_back(value);
+	}
       }
 
+      // Set the values of the matrix
+      hypre_matrix_set_values();
+
+      MPI_Barrier(comm_);
       auto stop = std::chrono::system_clock::now();
       std::chrono::duration<double> elapsed = stop - start;
-      std::cout << elapsed.count() << " seconds" << std::endl;
-      std::cout << "Matrix parameters: "
-        << "M = " << msize
-        << "; N = " << nsize
-        << "; nnz = " << nnz
-        << "; maxRowID = " << totalRows_ << std::endl;
-
-      timers_.emplace_back("Scan matrix", elapsed.count());
+      if (iproc_==0)
+	std::cout << elapsed.count() << " seconds" << std::endl;
+      timers_.emplace_back("Matrix market : read and build matrix", elapsed.count());
       fclose(fh);
     }
 
-    void HypreSystem::read_mm_vector(std::string mmfile, HYPRE_IJVector& vec)
+    /*******************
+     *
+     *******************/
+    void HypreSystem::build_mm_vector(std::string mmfile, HYPRE_IJVector& vec)
     {
-      if (iproc_ != 0) return;
+      MPI_Barrier(comm_);
       auto start = std::chrono::system_clock::now();
 
       FILE* fh;
@@ -862,7 +917,9 @@ std::cout<<"METHOD IS "<<method<<'\n';
       int msize, nsize;
       double value;
 
-      std::cout << "Reading array into HYPRE_IJVector.... ";
+      if (iproc_==0)
+	std::cout << "Reading array into HYPRE_IJVector.... ";
+
       if ((fh = fopen(mmfile.c_str(), "r")) == NULL) {
         throw std::runtime_error("Cannot open matrix file: " + mmfile);
       }
@@ -878,19 +935,29 @@ std::cout<<"METHOD IS "<<method<<'\n';
       if (err != 0)
         throw std::runtime_error("Cannot read matrix sizes in file: " + mmfile);
 
-      if ((msize != M_))
+      if ((msize != M_)) 
         throw std::runtime_error("Inconsistent sizes for Matrix and Vector");
 
+      vector_indices_.resize(0);
+      vector_values_.resize(0);
       for (int i=0; i < msize; i++) {
-        fscanf(fh, "%lf\n", &value);
-        HYPRE_IJVectorAddToValues(vec, 1, &rowOrder_[i], &value);
+	/* only read in the part owned by this rank */
+	if (i>=iLower_ && i<=iUpper_) {
+	  fscanf(fh, "%lf\n", &value);
+	  vector_values_.push_back(value);
+	  vector_indices_.push_back(i);
+	}
       }
 
+      /* build the vector */
+      hypre_vector_set_values(vec);
+
+      MPI_Barrier(comm_);
       auto stop = std::chrono::system_clock::now();
       std::chrono::duration<double> elapsed = stop - start;
-      std::cout << elapsed.count() << " seconds" << std::endl;
-      timers_.emplace_back("Read vector", elapsed.count());
+      if (iproc_==0)
+	std::cout << elapsed.count() << " seconds" << std::endl;
+      timers_.emplace_back("Matrix market : read and build vector", elapsed.count());
       fclose(fh);
     }
-
-    } // namespace nalu
+} // namespace nalu
