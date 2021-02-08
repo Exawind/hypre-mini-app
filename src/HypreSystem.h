@@ -1,6 +1,10 @@
 #ifndef HYPRESYSTEM_H
 #define HYPRESYSTEM_H
 
+#ifdef HAVE_CUDA
+#include <cuda_runtime_api.h>
+#endif
+
 #include "mpi.h"
 #include "HYPRE_utilities.h"
 #include "HYPRE_IJ_mv.h"
@@ -8,6 +12,11 @@
 #include "HYPRE_parcsr_mv.h"
 #include "krylov.h"
 #include "HYPRE.h"
+
+#ifdef HAVE_CUDA
+#include "_hypre_utilities.h"
+#include "_hypre_utilities.hpp"
+#endif
 
 #include "yaml-cpp/yaml.h"
 
@@ -52,24 +61,28 @@ private:
     void determine_ij_system_sizes(std::string, int);
 
     //! Initialize data structures when reading IJ files
-    void init_ij_system();
+    void init_row_decomposition();
 
     //! Read IJ Matrix into memory
-    void read_ij_matrix(std::string, int);
+    void build_ij_matrix(std::string, int);
 
     //! Read IJ Vector into memory
-    void read_ij_vector(std::string, int, HYPRE_IJVector&);
+    void build_ij_vector(std::string, int, HYPRE_IJVector&);
 
     //! Scan and load the Matrix Market file
-    void load_mm_matrix(std::string);
+    void build_mm_matrix(std::string);
 
-    //! Determine the dimensions of the matrix and the largest row ID
-    void determine_system_sizes(std::string);
+    //! Determine the dimensions of the matrix and the largest row ID : matrix market
+    void determine_mm_system_sizes(std::string);
 
-    //! Load the matrix into HYPRE_IJMatrix
-    void read_mm_matrix(std::string);
+    //! Build the HYPRE_IJMatrix from data loaded from either IJ or matrix market
+    void hypre_matrix_set_values();
 
-    void read_mm_vector(std::string, HYPRE_IJVector&);
+    //! Build the HYPRE_IJVector from data loaded from either IJ or matrix market
+    void hypre_vector_set_values(HYPRE_IJVector& vec);
+
+    //! Load the matrix into HYPRE_IJVector
+    void build_mm_vector(std::string, HYPRE_IJVector&);
 
     //! Initialize hypre linear system
     void init_system();
@@ -84,7 +97,8 @@ private:
 
     //! Setup GMRES
     void setup_gmres();
-void setup_cogmres();
+    void setup_cogmres();
+    
     //! MPI Communicator object
     MPI_Comm comm_;
 
@@ -93,8 +107,12 @@ void setup_cogmres();
     //! Flag indicating whether a row was filled
     std::vector<int> rowFilled_;
 
-    //! Row ordering
-    std::vector<HYPRE_Int> rowOrder_;
+    //! COO data structures read in only once
+    std::vector<HYPRE_Int> rows_;
+    std::vector<HYPRE_Int> cols_;
+    std::vector<double> vals_;
+    std::vector<HYPRE_Int> vector_indices_;
+    std::vector<double> vector_values_;
 
     //! Timers
     std::vector<std::pair<std::string, double>> timers_;
@@ -166,7 +184,6 @@ void setup_cogmres();
     bool checkSolution_{false};
     bool outputSystem_{false};
     bool usePrecond_{true};
-    bool needFinalize_{true};
 };
 
 } // namespace nalu

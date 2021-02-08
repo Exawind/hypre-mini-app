@@ -10,19 +10,27 @@ else()
   target_link_libraries(hypre_app yaml-cpp)
 endif()
 
+if (ENABLE_CUDA)
 target_link_libraries(hypre_app
   ${HYPRE_LIBRARIES}
   ${MPI_CXX_LIBRARIES}
   ${MPI_C_LIBRARIES}
   ${CUDA_cusparse_LIBRARY}
+  ${CUDA_curand_LIBRARY}
   ${CUDA_LIBRARIES}
   ${CUDA_CUBLAS_LIBRARIES}
-  ${CUDA_NVTX_LIBRARY}
   )
 
 set_target_properties(hypre_app PROPERTIES
   CUDA_SEPARABLE_COMPILATION ON
   )
+else()
+target_link_libraries(hypre_app
+  ${HYPRE_LIBRARIES}
+  ${MPI_CXX_LIBRARIES}
+  ${MPI_C_LIBRARIES}
+)
+endif()
 
 if(MPI_COMPILE_FLAGS)
   set_target_properties(hypre_app PROPERTIES
