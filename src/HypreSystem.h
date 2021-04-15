@@ -98,6 +98,9 @@ private:
     //! Setup GMRES
     void setup_gmres();
     void setup_cogmres();
+    void setup_fgmres();
+    void setup_bicg();
+
     
     //! MPI Communicator object
     MPI_Comm comm_;
