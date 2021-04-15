@@ -7,7 +7,7 @@
 #include <iostream>
 #include <chrono>
 
-int getNodeCount(int nproc, int device_count)
+int getDevice(int nproc, int device_count)
 {
   int rank, is_rank0, nodes;
   MPI_Comm shmcomm;
@@ -41,7 +41,7 @@ int main(int argc, char* argv[])
     cudaGetDeviceCount(&count);
 
     // get the device from
-    int device = getNodeCount(nproc, count);
+    int device = getDevice(nproc, count);
 
     // set the device before calling HypreInit. 
     cudaSetDevice(device);
