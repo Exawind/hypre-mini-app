@@ -82,6 +82,12 @@ namespace nalu {
       if (!method.compare( "gmres")){       
         if (iproc_ == 0) std::cout << "using GMRES solver" << std::endl;
         setup_gmres();
+      } else if (!method.compare( "bicg")){
+        if (iproc_ == 0) std::cout << "using BiCG solver" << std::endl;
+        setup_bicg();
+      } else if (!method.compare( "fgmres")){
+        if (iproc_ == 0) std::cout << "using FlexGMRES solver" << std::endl;
+        setup_fgmres();
       } else if (!method.compare("boomeramg")) {
         if (iproc_ == 0) std::cout << "using BOOMERANG solver" << std::endl;
         setup_boomeramg_solver();
@@ -113,6 +119,8 @@ namespace nalu {
           precond_, get_optional(node, "relax_type", 6));
       HYPRE_BoomerAMGSetNumSweeps(
           precond_, get_optional(node, "num_sweeps", 1));
+      HYPRE_BoomerAMGSetSmoothNumSweeps(
+          precond_, get_optional(node, "smooth_num_sweeps", 1));
       HYPRE_BoomerAMGSetRelaxOrder(
           precond_, get_optional(node, "relax_order", 1));
       HYPRE_BoomerAMGSetMaxLevels(
@@ -138,10 +146,32 @@ namespace nalu {
           precond_, get_optional(node, "coarsen_type", 8));
       HYPRE_BoomerAMGSetCycleType (
           precond_, get_optional(node, "cycle_type", 1));
-      HYPRE_BoomerAMGSetRelaxType(
-          precond_, get_optional(node, "relax_type", 6));
-      HYPRE_BoomerAMGSetNumSweeps(
-          precond_, get_optional(node, "num_sweeps", 1));
+
+      if (node["down_relax_type"] && node["up_relax_type"] && node["coarse_relax_type"]) {
+	HYPRE_BoomerAMGSetCycleRelaxType(
+	    precond_, get_optional(node, "down_relax_type", 8), 1);
+	HYPRE_BoomerAMGSetCycleRelaxType(
+	    precond_, get_optional(node, "up_relax_type", 8), 2);
+	HYPRE_BoomerAMGSetCycleRelaxType(
+            precond_, get_optional(node, "coarse_relax_type", 8), 3);
+      } else {
+	HYPRE_BoomerAMGSetRelaxType(
+          precond_, get_optional(node, "relax_type", 8));
+      }
+
+      if (node["num_down_sweeps"] && node["num_up_sweeps"] && node["num_coarse_sweeps"]) {
+	HYPRE_BoomerAMGSetCycleNumSweeps(
+	    precond_, get_optional(node, "num_down_sweeps", 1), 1);
+	HYPRE_BoomerAMGSetCycleNumSweeps(
+	    precond_, get_optional(node, "num_up_sweeps", 1), 2);
+	HYPRE_BoomerAMGSetCycleNumSweeps(
+            precond_, get_optional(node, "num_coarse_sweeps", 1), 3);
+      } else  {
+	HYPRE_BoomerAMGSetNumSweeps(
+            precond_, get_optional(node, "num_sweeps", 1));
+      }
+      HYPRE_BoomerAMGSetSmoothNumSweeps(
+          precond_, get_optional(node, "smooth_num_sweeps", 1));
       HYPRE_BoomerAMGSetTol(
           precond_, get_optional(node, "tolerance", 0.0));
       HYPRE_BoomerAMGSetMaxIter(
@@ -256,6 +286,38 @@ namespace nalu {
       solverSetupPtr_ = &HYPRE_ParCSRGMRESSetup;
       solverPrecondPtr_ = &HYPRE_ParCSRGMRESSetPrecond;
       solverSolvePtr_ = &HYPRE_ParCSRGMRESSolve;
+    }
+
+    void HypreSystem::setup_fgmres()
+    {
+      YAML::Node node = inpfile_["solver_settings"];
+
+      HYPRE_ParCSRFlexGMRESCreate(comm_, &solver_);
+      HYPRE_ParCSRFlexGMRESSetTol(solver_, get_optional(node, "tolerance", 1.0e-5));
+      HYPRE_ParCSRFlexGMRESSetMaxIter(solver_, get_optional(node, "max_iterations", 1000));
+      HYPRE_ParCSRFlexGMRESSetKDim(solver_, get_optional(node, "kspace", 10));
+      HYPRE_ParCSRFlexGMRESSetPrintLevel(solver_, get_optional(node, "print_level", 4));
+
+      solverDestroyPtr_ = &HYPRE_ParCSRFlexGMRESDestroy;
+      solverSetupPtr_ = &HYPRE_ParCSRFlexGMRESSetup;
+      solverPrecondPtr_ = &HYPRE_ParCSRFlexGMRESSetPrecond;
+      solverSolvePtr_ = &HYPRE_ParCSRFlexGMRESSolve;
+    }
+
+    void HypreSystem::setup_bicg()
+    {
+      YAML::Node node = inpfile_["solver_settings"];
+
+      HYPRE_ParCSRBiCGSTABCreate(comm_, &solver_);
+      HYPRE_ParCSRBiCGSTABSetTol(solver_, get_optional(node, "tolerance", 1.0e-5));
+      HYPRE_ParCSRBiCGSTABSetMaxIter(solver_, get_optional(node, "max_iterations", 1000));
+      //HYPRE_ParCSRBiCGSTABSetKDim(solver_, get_optional(node, "kspace", 10));
+      HYPRE_ParCSRBiCGSTABSetPrintLevel(solver_, get_optional(node, "print_level", 4));
+
+      solverDestroyPtr_ = &HYPRE_ParCSRBiCGSTABDestroy;
+      solverSetupPtr_ = &HYPRE_ParCSRBiCGSTABSetup;
+      solverPrecondPtr_ = &HYPRE_ParCSRBiCGSTABSetPrecond;
+      solverSolvePtr_ = &HYPRE_ParCSRBiCGSTABSolve;
     }
 
     void HypreSystem::init_row_decomposition()
