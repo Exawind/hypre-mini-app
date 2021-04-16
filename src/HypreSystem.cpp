@@ -207,6 +207,11 @@ namespace nalu {
         HYPRE_BoomerAMGSetVariant(precond_, int_value);
       }
 
+      if (node["rap2"]) {
+        int int_value = node["rap2"].as<int>();
+        HYPRE_BoomerAMGSetRAP2(precond_, int_value);
+      }
+
       if (node["keep_transpose"]) {
         int int_value = node["keep_transpose"].as<int>();
         HYPRE_BoomerAMGSetKeepTranspose(precond_, int_value);
