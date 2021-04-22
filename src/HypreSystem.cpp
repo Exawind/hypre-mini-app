@@ -1,27 +1,4 @@
 #include "HypreSystem.h"
-#include "HYPRE_IJ_mv.h"
-#include "HYPRE_parcsr_ls.h"
-#include "krylov.h"
-#include "_hypre_parcsr_mv.h"
-#include "_hypre_IJ_mv.h"
-#include "HYPRE_parcsr_mv.h"
-#include "HYPRE.h"
-#include "HYPRE_config.h"
-
-extern "C"
-{
-#include "mmio.h"
-}
-
-#include <iomanip>
-#include <algorithm>
-#include <chrono>
-#include <limits>
-#include <cmath>
-#include <cstdio>
-#include <iostream>
-#include <sstream>
-#include <string.h>
 
 namespace nalu {
 
@@ -340,6 +317,16 @@ namespace nalu {
         << numRows_ << std::endl;
     }
 
+    void HypreSystem::destroy_system()
+    {
+      if (mat_) HYPRE_IJMatrixDestroy(mat_);
+      if (rhs_) HYPRE_IJVectorDestroy(rhs_);
+      if (sln_) HYPRE_IJVectorDestroy(sln_);
+      if (slnRef_) HYPRE_IJVectorDestroy(slnRef_);
+      if (solver_) solverDestroyPtr_(solver_);
+      if (precond_) precondDestroyPtr_(precond_);
+    }
+
     void HypreSystem::init_system()
     {
       auto start = std::chrono::system_clock::now();
@@ -513,25 +500,29 @@ namespace nalu {
 
       int nnz_this_rank = rows_.size();
 
-#ifdef HAVE_CUDA
+#if defined(HYPRE_USING_GPU)
       HYPRE_Int * d_cols, * d_rows;
-      double * d_values;
+      HYPRE_Complex * d_vals;
 
-      cudaMallocManaged((void**)&d_rows, nnz_this_rank*sizeof(HYPRE_Int));
-      cudaMallocManaged((void**)&d_cols, nnz_this_rank*sizeof(HYPRE_Int));
-      cudaMallocManaged((void**)&d_values, nnz_this_rank*sizeof(double));
+      d_rows = hypre_TAlloc(HYPRE_Int, nnz_this_rank, HYPRE_MEMORY_DEVICE);
+      d_cols = hypre_TAlloc(HYPRE_Int, nnz_this_rank, HYPRE_MEMORY_DEVICE);
+      d_vals = hypre_TAlloc(HYPRE_Complex, nnz_this_rank, HYPRE_MEMORY_DEVICE);
 
-      memcpy(d_rows, rows_.data(), nnz_this_rank*sizeof(HYPRE_Int));
-      memcpy(d_cols, cols_.data(), nnz_this_rank*sizeof(HYPRE_Int));
-      memcpy(d_values, vals_.data(), nnz_this_rank*sizeof(double));
+      hypre_TMemcpy(d_rows, rows_.data(), HYPRE_Int, nnz_this_rank, HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
+      hypre_TMemcpy(d_cols, cols_.data(), HYPRE_Int, nnz_this_rank, HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
+      hypre_TMemcpy(d_vals, vals_.data(), HYPRE_Complex, nnz_this_rank, HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
+
+      /* Use the fast path */
+      //HYPRE_IJMatrixSetMaxOnProcElmts(mat_, nnz_this_rank);
+      //HYPRE_IJMatrixSetOffProcSendElmts(mat_, 0);
+      //HYPRE_IJMatrixSetOffProcRecvElmts(mat_, 0);
 
       /* Call this on UVM data */
-      HYPRE_IJMatrixSetValues2(mat_, nnz_this_rank, NULL, d_rows, NULL, d_cols, d_values);
-      cudaDeviceSynchronize();
+      HYPRE_IJMatrixSetValues2(mat_, nnz_this_rank, NULL, d_rows, NULL, d_cols, d_vals);
 
-      cudaFree(d_rows);
-      cudaFree(d_cols);
-      cudaFree(d_values);
+      hypre_TFree(d_rows, HYPRE_MEMORY_DEVICE);
+      hypre_TFree(d_cols, HYPRE_MEMORY_DEVICE);
+      hypre_TFree(d_vals, HYPRE_MEMORY_DEVICE);
 #else
       HYPRE_IJMatrixSetValues2(mat_, nnz_this_rank, NULL, rows_.data(), NULL, cols_.data(), vals_.data());
 #endif
@@ -546,25 +537,31 @@ namespace nalu {
     void HypreSystem::hypre_vector_set_values(HYPRE_IJVector& vec)
     {
       if (iproc_==0)
-	std::cout << "Loading matrix into HYPRE_IJVector... ";
+	std::cout << "Loading vector into HYPRE_IJVector... ";
 
       auto start = std::chrono::system_clock::now();
 
-#ifdef HAVE_CUDA
+
+#if defined(HYPRE_USING_GPU)
       HYPRE_Int * d_indices;
-      double * d_values;
-      cudaMallocManaged((void**)&d_values, vector_values_.size()*sizeof(double));
-      cudaMallocManaged((void**)&d_indices, vector_indices_.size()*sizeof(HYPRE_Int));
+      HYPRE_Complex * d_vals;
+      size_t N = vector_values_.size();
 
-      memcpy(d_values, vector_values_.data(), vector_values_.size()*sizeof(double));
-      memcpy(d_indices, vector_indices_.data(), vector_indices_.size()*sizeof(HYPRE_Int));
+      d_indices = hypre_TAlloc(HYPRE_Int, N, HYPRE_MEMORY_DEVICE);
+      d_vals = hypre_TAlloc(HYPRE_Complex, N, HYPRE_MEMORY_DEVICE);
 
-      /* Call this on UVM data */
-      HYPRE_IJVectorSetValues(vec, iUpper_-iLower_+1, d_indices, d_values);
-      cudaDeviceSynchronize();
+      hypre_TMemcpy(d_indices, vector_indices_.data(), HYPRE_Int, N, HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
+      hypre_TMemcpy(d_vals, vector_values_.data(), HYPRE_Complex, N, HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
 
-      cudaFree(d_values);
-      cudaFree(d_indices);
+      /* Use the fast path */
+      //HYPRE_IJVectorSetMaxOnProcElmts(vec, N);
+      //HYPRE_IJVectorSetOffProcSendElmts(vec, 0);
+      //HYPRE_IJVectorSetOffProcRecvElmts(vec, 0);
+
+      HYPRE_IJVectorSetValues(vec, iUpper_-iLower_+1, d_indices, d_vals);
+
+      hypre_TFree(d_indices, HYPRE_MEMORY_DEVICE);
+      hypre_TFree(d_vals, HYPRE_MEMORY_DEVICE);
 #else
       HYPRE_IJVectorSetValues(vec, iUpper_-iLower_+1, vector_indices_.data(), vector_values_.data());
 #endif
@@ -584,13 +581,13 @@ namespace nalu {
     {
       YAML::Node linsys = inpfile_["linear_system"];
       int nfiles = get_optional(linsys, "num_partitions", nproc_);
-      bool useCuda=false;
+      bool useGPU=false;
 
-#ifdef HAVE_CUDA
+#if defined(HYPRE_USING_GPU)
       // This is hack to prevent the cuda build from using the native load procedure
-      useCuda=true;
+      useGPU=true;
 #endif
-      if (nfiles == nproc_ && !useCuda)
+      if (nfiles == nproc_ && !useGPU)
         load_hypre_native();
       else {
         std::string matfile = linsys["matrix_file"].as<std::string>();
@@ -819,8 +816,10 @@ namespace nalu {
 #else
           while (fscanf(fh, "%d%*[ \t]%le\n", &irow, &value) != EOF) {
 #endif
-	    vector_indices_.push_back(irow);
-	    vector_values_.push_back(value);
+            if (irow>=iLower_ && irow<=iUpper_) {
+	      vector_indices_.push_back(irow);
+	      vector_values_.push_back(value);
+	    }
 	  }
 	}
         fclose(fh);

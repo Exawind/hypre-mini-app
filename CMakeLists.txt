@@ -20,7 +20,6 @@ find_library(CUDA_NVTX_LIBRARY
   NAMES nvToolsExt
   HINTS ${CUDA_TOOLKIT_ROOT_DIR}
   PATH_SUFFIXES lib)
-add_definitions(-DHAVE_CUDA)
 endif()
 
 find_package(HYPRE REQUIRED)

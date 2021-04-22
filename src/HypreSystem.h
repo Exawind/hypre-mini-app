@@ -1,28 +1,22 @@
 #ifndef HYPRESYSTEM_H
 #define HYPRESYSTEM_H
 
-#ifdef HAVE_CUDA
-#include <cuda_runtime_api.h>
-#endif
-
 #include "mpi.h"
-#include "HYPRE_utilities.h"
-#include "HYPRE_IJ_mv.h"
 #include "HYPRE_parcsr_ls.h"
 #include "HYPRE_parcsr_mv.h"
 #include "krylov.h"
 #include "HYPRE.h"
 
-#ifdef HAVE_CUDA
-#include "_hypre_utilities.h"
-#include "_hypre_utilities.hpp"
-#endif
-
 #include "yaml-cpp/yaml.h"
 
-#include <string>
-#include <vector>
-#include <utility>
+extern "C"
+{
+#include "mmio.h"
+}
+
+#include <iomanip>
+#include <algorithm>
+#include <chrono>
 
 namespace nalu {
 
@@ -44,8 +38,13 @@ public:
     //! Summarize timers
     void summarize_timers();
 
+    //! Destroy hypre linear system
+    void destroy_system();
+
 private:
+
     HypreSystem() = delete;
+
     HypreSystem(const HypreSystem&) = delete;
 
     //! Load files in matrix market format
@@ -121,16 +120,16 @@ private:
     std::vector<std::pair<std::string, double>> timers_;
 
     //! HYPRE IJ Matrix
-    HYPRE_IJMatrix mat_;
+    HYPRE_IJMatrix mat_=NULL;
 
     //! The rhs vector
-    HYPRE_IJVector rhs_;
+    HYPRE_IJVector rhs_=NULL;
 
     //! The solution vector
-    HYPRE_IJVector sln_;
+    HYPRE_IJVector sln_=NULL;
 
     //! The solution vector
-    HYPRE_IJVector slnRef_;
+    HYPRE_IJVector slnRef_=NULL;
 
     //! Instance of the Hypre parallel matrix
     HYPRE_ParCSRMatrix parMat_;
@@ -144,9 +143,9 @@ private:
     //! Instance of Hypre parallel solution vector
     HYPRE_ParVector parSlnRef_;
 
-    HYPRE_Solver solver_;
+    HYPRE_Solver solver_=NULL;
 
-    HYPRE_Solver precond_;
+    HYPRE_Solver precond_=NULL;
 
     //! Global number of rows in the linear system
     HYPRE_Int totalRows_{0};

@@ -1,11 +1,4 @@
-
 #include "HypreSystem.h"
-#include "mpi.h"
-
-#include "yaml-cpp/yaml.h"
-
-#include <iostream>
-#include <chrono>
 
 int getDevice(int nproc, int device_count)
 {
@@ -36,7 +29,7 @@ int main(int argc, char* argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &iproc);
     MPI_Comm_size(MPI_COMM_WORLD, &nproc);
 
-#ifdef HAVE_CUDA
+#ifdef HYPRE_USING_CUDA
     int count;
     cudaGetDeviceCount(&count);
 
@@ -66,9 +59,29 @@ int main(int argc, char* argv[])
                                mempool_max_bin, mempool_max_cached_bytes );
 #endif
 
-#ifdef HAVE_CUDA
-    hypre_HandleDefaultExecPolicy(hypre_handle()) = HYPRE_EXEC_DEVICE;
-    hypre_HandleSpgemmUseCusparse(hypre_handle()) = 0;
+#if defined(HYPRE_USING_UMPIRE)
+   /* Setup Umpire pools */
+   //HYPRE_SetUmpireDevicePoolName("HYPRE_DEVICE_POOL");
+   HYPRE_SetUmpireUMPoolName("HYPRE_UM_POOL");
+   //HYPRE_SetUmpireHostPoolName("HYPRE_HOST_POOL");
+   //HYPRE_SetUmpirePinnedPoolName("HYPRE_PINNED_POOL");
+   //HYPRE_SetUmpireDevicePoolSize(4LL * 1024 * 1024 * 1024);
+   HYPRE_SetUmpireUMPoolSize(1LL * 1024 * 1024 * 1024);
+   //HYPRE_SetUmpireHostPoolSize(1LL * 1024 * 1024 * 1024 / 1024);
+   //HYPRE_SetUmpirePinnedPoolSize(1LL * 1024 * 1024 * 1024 / 1024);
+#endif
+
+#ifdef HYPRE_USING_GPU
+   HYPRE_ExecutionPolicy default_exec_policy = HYPRE_EXEC_DEVICE;
+   HYPRE_MemoryLocation memory_location = HYPRE_MEMORY_DEVICE;
+
+   /* default memory location */
+   HYPRE_SetMemoryLocation(memory_location);
+
+   /* default execution policy */
+   HYPRE_SetExecutionPolicy(default_exec_policy);
+
+   HYPRE_CSRMatrixSetSpGemmUseCusparse(false);
 #endif
 
     auto start = std::chrono::system_clock::now();
@@ -86,6 +99,13 @@ int main(int argc, char* argv[])
     nalu::HypreSystem linsys(MPI_COMM_WORLD, inpfile);
 
     linsys.load();
+
+#ifdef HYPRE_USING_CUDA
+    cudaMemGetInfo(&free, &total);
+    printf("\trank=%d : %s %s %d : device=%d of %d : free memory=%1.8g GB, total memory=%1.8g GB\n",
+	   iproc,__FUNCTION__,__FILE__,__LINE__,device,count,free/1.e9,total/1.e9);
+#endif
+
     linsys.solve();
 
     linsys.check_solution();
@@ -98,14 +118,16 @@ int main(int argc, char* argv[])
     if (iproc == 0)
         std::cout << "Total time: " << elapsed.count() << " seconds" << std::endl;
 
-#ifdef HAVE_CUDA
+    linsys.destroy_system();
+
     HYPRE_Finalize();
-#endif
 
     MPI_Finalize();
-#ifdef HAVE_CUDA
+#ifdef HYPRE_USING_CUDA
     /* Need this at the end so cuda memcheck leak-check can work properly */
     cudaDeviceReset();
+#elif defined(HYPRE_USING_HIP)
+   hipDeviceReset();
 #endif
     return 0;
 }
