@@ -34,15 +34,13 @@ if(ENABLE_CUDA)
     CUDA::cudart
     CUDA::cublas
     CUDA::nvToolsExt)
+  # Are these needed??
   #target_compile_options(hypre_app_lib PUBLIC $<$<COMPILE_LANGUAGE:CXX>:--expt-relaxed-constexpr>)
-
-  # Is this needed??
   #set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "--relocatable-device-code=true ")
-
 endif()
 
 
-########################## CUDA ####################################
+########################## HIP ####################################
 if (ENABLE_HIP)
   find_package(HIP REQUIRED)
   find_package(rocThrust REQUIRED) 
@@ -90,25 +88,13 @@ endif()
 
 
 ########################## YAML ####################################
-#set(CMAKE_PREFIX_PATH ${YAML_ROOT_DIR} ${CMAKE_PREFIX_PATH})
-#find_package(YAML-CPP)
-#if (YAML-CPP_FOUND)
-#  include_directories(SYSTEM ${YAML_CPP_INCLUDE_DIR})
-#else()
-#  set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Build tests")
-#  set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Build tools")
-#  set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Build contrib")
-#  add_subdirectory(deps/yaml-cpp)
-#  include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/deps/yaml-cpp/include/")
-#endif()
-
 set(CMAKE_PREFIX_PATH ${YAML_ROOT_DIR} ${CMAKE_PREFIX_PATH})
 find_package(YAML-CPP 0.6.3 QUIET REQUIRED)
 message(STATUS "Found YAML-CPP = ${YAML_CPP_CMAKE_DIR}")
 target_link_libraries(hypre_app_lib PUBLIC yaml-cpp)
 target_include_directories(hypre_app_lib SYSTEM PUBLIC ${YAML_CPP_INCLUDE_DIR})
 
-########################### NALU #####################################
+########################### Hypre Mini APp #####################################
 message(STATUS "CMAKE_SYSTEM_NAME = ${CMAKE_SYSTEM_NAME}")
 message(STATUS "CMAKE_CXX_COMPILER_ID = ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
