@@ -123,9 +123,10 @@ int main(int argc, char* argv[])
     HYPRE_Finalize();
 
     MPI_Finalize();
-#ifdef HYPRE_USING_CUDA
+
     /* Need this at the end so cuda memcheck leak-check can work properly */
-    cudaDeviceReset();
+#if defined(HYPRE_USING_CUDA)
+   cudaDeviceReset();
 #elif defined(HYPRE_USING_HIP)
    hipDeviceReset();
 #endif

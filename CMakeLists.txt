@@ -1,50 +1,142 @@
-cmake_minimum_required(VERSION 3.1)
+############################ BASE ######################################
+cmake_minimum_required (VERSION 3.17.0 FATAL_ERROR)
 project(hypre_app CXX C)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
-option(ENABLE_CUDA "Enable build targeting GPU" OFF)
+########################## OPTIONS #####################################
+option(ENABLE_CUDA "Enable Nvidia CUDA" OFF)
+option(ENABLE_HIP "Enable HIP/ROCm" OFF)
 option(ENABLE_UMPIRE "Enable Umpire GPU memory pools" OFF)
 
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS FALSE)
+set(CMAKE_CXX_STANDARD 14)       # Set nalu-wind C++14 standard
+set(CMAKE_CXX_EXTENSIONS OFF)    # Do not enable GNU extensions
+set(CMAKE_CXX_STANDARD_REQUIRED) # Force error if C++14 standard is not supported
 
+# Create targets
+set(hypre_app_name "hypre_app")
+add_library(hypre_app_lib "")
+add_executable(${hypre_app_name} ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
+
+########################## MPI ####################################
 find_package(MPI REQUIRED)
-include_directories(SYSTEM ${MPI_C_INCLUDE_PATH})
-include_directories(SYSTEM ${MPI_CXX_INCLUDE_PATH})
+target_link_libraries(hypre_app_lib PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
+target_link_libraries(hypre_app_lib PUBLIC $<$<BOOL:${MPI_Fortran_FOUND}>:MPI::MPI_Fortran>)
 
-if (ENABLE_CUDA)
-enable_language(CUDA)
-find_package(CUDA REQUIRED)
-find_library(CUDA_NVTX_LIBRARY
-  NAMES nvToolsExt
-  HINTS ${CUDA_TOOLKIT_ROOT_DIR}
-  PATH_SUFFIXES lib)
+
+########################## CUDA ####################################
+if(ENABLE_CUDA)
+  enable_language(CUDA)
+  find_package(CUDAToolkit REQUIRED)
+  message(STATUS "Found CUDAToolkit = ${CUDAToolkit_VERSION} (${CUDAToolkit_LIBRARY_DIR})")
+  target_link_libraries(hypre_app_lib PUBLIC
+    CUDA::cusparse
+    CUDA::curand
+    CUDA::cudart
+    CUDA::cublas
+    CUDA::nvToolsExt)
+  #target_compile_options(hypre_app_lib PUBLIC $<$<COMPILE_LANGUAGE:CXX>:--expt-relaxed-constexpr>)
+
+  # Is this needed??
+  #set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "--relocatable-device-code=true ")
+
 endif()
 
-find_package(HYPRE REQUIRED)
-include_directories(SYSTEM ${HYPRE_INCLUDE_DIRS})
 
+########################## CUDA ####################################
+if (ENABLE_HIP)
+  find_package(HIP REQUIRED)
+  find_package(rocThrust REQUIRED) 
+  find_package(rocRand REQUIRED)
+  find_package(rocBlas REQUIRED)
+  find_package(rocSparse REQUIRED)
+  #if (NOT DEFINED AMD_ARCH)
+    # Set default AMD architectures (based on Tulip for now)
+  #  set(AMD_ARCH "gfx906,gfx908")
+  #endif()
+  #set(GPU_TARGETS "gfx906" CACHE STRING "GPU targets to compile for")
+  #set(GPU_TARGETS "gfx908" CACHE STRING "GPU targets to compile for")
+  
+  message(STATUS "Found HIP Toolkit = ${HIP_VERSION} (${HIP_LIBRARY_DIR})")
+  target_link_libraries(hypre_app_lib PUBLIC
+    hip::device
+    roc::rocthrust
+    roc::rocrand
+    roc::rocblas
+    roc::rocsparse)
+endif()
+
+
+########################## HYPRE ####################################
+set(CMAKE_PREFIX_PATH ${HYPRE_DIR} ${CMAKE_PREFIX_PATH})
+find_package(HYPRE 2.20.0 REQUIRED)
+message(STATUS "Found HYPRE = ${HYPRE_DIR}")
+target_link_libraries(hypre_app_lib PUBLIC ${HYPRE_LIBRARIES})
+target_include_directories(hypre_app_lib SYSTEM PUBLIC ${HYPRE_INCLUDE_DIRS})
+include(CheckCXXSymbolExists)
+check_cxx_symbol_exists(
+  HYPRE_BIGINT "${HYPRE_INCLUDE_DIRS}/HYPRE_config.h" HYPRE_APP_BIGINT)
+if(NOT HYPRE_APP_BIGINT AND NOT ENABLE_CUDA AND NOT ENABLE_HIP)
+  message(WARNING
+    "HYPRE does not enable 64-bit integer support; will fail on large problems!")
+endif()
+
+  
+########################## UMPIRE ####################################
 if (ENABLE_UMPIRE)
   set(CMAKE_PREFIX_PATH ${UMPIRE_DIR} ${CMAKE_PREFIX_PATH})
   find_package(Umpire REQUIRED)
   include_directories(SYSTEM ${UMPIRE_INCLUDE_DIRS})
 endif()
 
+
+########################## YAML ####################################
+#set(CMAKE_PREFIX_PATH ${YAML_ROOT_DIR} ${CMAKE_PREFIX_PATH})
+#find_package(YAML-CPP)
+#if (YAML-CPP_FOUND)
+#  include_directories(SYSTEM ${YAML_CPP_INCLUDE_DIR})
+#else()
+#  set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Build tests")
+#  set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Build tools")
+#  set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Build contrib")
+#  add_subdirectory(deps/yaml-cpp)
+#  include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/deps/yaml-cpp/include/")
+#endif()
+
 set(CMAKE_PREFIX_PATH ${YAML_ROOT_DIR} ${CMAKE_PREFIX_PATH})
-find_package(YAML-CPP)
-if (YAML-CPP_FOUND)
-  include_directories(SYSTEM ${YAML_CPP_INCLUDE_DIR})
-else()
-  set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Build tests")
-  set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Build tools")
-  set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Build contrib")
+find_package(YAML-CPP 0.6.3 QUIET REQUIRED)
+message(STATUS "Found YAML-CPP = ${YAML_CPP_CMAKE_DIR}")
+target_link_libraries(hypre_app_lib PUBLIC yaml-cpp)
+target_include_directories(hypre_app_lib SYSTEM PUBLIC ${YAML_CPP_INCLUDE_DIR})
 
-  add_subdirectory(deps/yaml-cpp)
-  include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/deps/yaml-cpp/include/")
+########################### NALU #####################################
+message(STATUS "CMAKE_SYSTEM_NAME = ${CMAKE_SYSTEM_NAME}")
+message(STATUS "CMAKE_CXX_COMPILER_ID = ${CMAKE_CXX_COMPILER_ID}")
+message(STATUS "CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
+
+
+# Logic for handling warnings
+if(ENABLE_ALL_WARNINGS)
+  # GCC, Clang, and Intel seem to accept these
+  list(APPEND HYPRE_APP_CXX_FLAGS "-Wall" "-Wextra" "-pedantic")
+  if(NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
+    # ifort doesn't like -Wall
+    list(APPEND HYPRE_APP_Fortran_FLAGS "-Wall")
+  else()
+    # Intel always reports some diagnostics we don't necessarily care about
+    list(APPEND HYPRE_APP_CXX_FLAGS "-diag-disable:11074,11076")
+  endif()
+  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 7.0)
+    # Avoid notes about -faligned-new with GCC > 7
+    list(APPEND HYPRE_APP_CXX_FLAGS "-faligned-new")
+  endif()
 endif()
 
-if (ENABLE_CUDA)
-set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "--relocatable-device-code=true ")
-endif()
+# Add our extra flags according to language
+separate_arguments(HYPRE_APP_CXX_FLAGS)
+separate_arguments(HYPRE_APP_Fortran_FLAGS)
+target_compile_options(hypre_app_lib PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${HYPRE_APP_CXX_FLAGS}>)
+target_compile_options(hypre_app_lib PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:${HYPRE_APP_Fortran_FLAGS}>)
+target_compile_options(hypre_app_lib PRIVATE $<$<BOOL:${ENABLE_WERROR}>:-Werror>)
+
+target_link_libraries(${hypre_app_name} PRIVATE hypre_app_lib)
 add_subdirectory(src)
