@@ -1,5 +1,11 @@
 #include "HypreSystem.h"
 
+#if defined(HYPRE_USING_CUDA)
+#include <cuda_runtime.h>
+#elif defined(HYPRE_USING_HIP)
+#include <hip/hip_runtime.h>
+#endif
+
 int getDevice(int nproc, int device_count)
 {
   int rank, is_rank0, nodes;
@@ -36,14 +42,37 @@ int main(int argc, char* argv[])
     // get the device from
     int device = getDevice(nproc, count);
 
-    // set the device before calling HypreInit. 
+    // set the device before calling HypreInit.
     cudaSetDevice(device);
     cudaGetDevice(&device);
     size_t free, total;
     cudaMemGetInfo(&free, &total);
-    printf("\trank=%d : %s %s %d : device=%d of %d : free memory=%1.8g GB, total memory=%1.8g GB\n",
-	   iproc,__FUNCTION__,__FILE__,__LINE__,device,count,free/1.e9,total/1.e9);
+    cudaDeviceProp prop;
+    cudaGetDeviceProperties(&prop, device);
+    printf("\trank=%d : %s %s %d : %s : device=%d of %d : free memory=%1.8g GB, total memory=%1.8g GB\n",
+	   iproc,__FUNCTION__,__FILE__,__LINE__,prop.name,device,count,free/1.e9,total/1.e9);
 #endif
+
+#ifdef HYPRE_USING_HIP
+    int count;
+    hipGetDeviceCount(&count);
+
+    // get the device from
+    int device = getDevice(nproc, count);
+
+    // set the device before calling HypreInit.
+    hipSetDevice(device);
+    hipGetDevice(&device);
+    size_t free, total;
+    hipMemGetInfo(&free, &total);
+
+    hipDeviceProp_t prop;
+    hipGetDeviceProperties(&prop, device);
+    printf("rank=%d : %s %s %d : %s arch=%d : device=%d of %d : free memory=%1.8g GB, total memory=%1.8g GB\n",
+	   iproc,__FUNCTION__,__FILE__,__LINE__,prop.name,prop.gcnArch,device,count,free/1.e9,total/1.e9);
+#endif
+    fflush(stdout);
+    MPI_Barrier(MPI_COMM_WORLD);
 
     HYPRE_Int ret = HYPRE_Init();
 
@@ -102,9 +131,17 @@ int main(int argc, char* argv[])
 
 #ifdef HYPRE_USING_CUDA
     cudaMemGetInfo(&free, &total);
-    printf("\trank=%d : %s %s %d : device=%d of %d : free memory=%1.8g GB, total memory=%1.8g GB\n",
-	   iproc,__FUNCTION__,__FILE__,__LINE__,device,count,free/1.e9,total/1.e9);
+    printf("\trank=%d : %s %s %d : %s : device=%d of %d : free memory=%1.8g GB, total memory=%1.8g GB\n",
+	   iproc,__FUNCTION__,__FILE__,__LINE__,prop.name,device,count,free/1.e9,total/1.e9);
 #endif
+
+#ifdef HYPRE_USING_HIP
+    hipMemGetInfo(&free, &total);
+    printf("rank=%d : %s %s %d : %s arch=%d : device=%d of %d : free memory=%1.8g GB, total memory=%1.8g GB\n",
+	   iproc,__FUNCTION__,__FILE__,__LINE__,prop.name,prop.gcnArch,device,count,free/1.e9,total/1.e9);
+#endif
+    fflush(stdout);
+    MPI_Barrier(MPI_COMM_WORLD);
 
     linsys.solve();
 
@@ -123,9 +160,10 @@ int main(int argc, char* argv[])
     HYPRE_Finalize();
 
     MPI_Finalize();
-#ifdef HYPRE_USING_CUDA
+
     /* Need this at the end so cuda memcheck leak-check can work properly */
-    cudaDeviceReset();
+#if defined(HYPRE_USING_CUDA)
+   cudaDeviceReset();
 #elif defined(HYPRE_USING_HIP)
    hipDeviceReset();
 #endif

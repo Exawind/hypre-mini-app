@@ -14,6 +14,7 @@ extern "C"
 #include "mmio.h"
 }
 
+#include <iostream>
 #include <iomanip>
 #include <algorithm>
 #include <chrono>
