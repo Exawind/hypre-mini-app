@@ -77,6 +77,8 @@ namespace nalu {
         throw std::runtime_error("Invalid option for solver method provided: "
             + method);
       }
+      MPI_Barrier(MPI_COMM_WORLD);
+      fflush(stdout);
     }
 
     void HypreSystem::setup_boomeramg_solver()
@@ -302,21 +304,6 @@ namespace nalu {
       solverSolvePtr_ = &HYPRE_ParCSRBiCGSTABSolve;
     }
 
-    void HypreSystem::init_row_decomposition()
-    {
-      HYPRE_Int rowsPerProc = totalRows_ / nproc_;
-      HYPRE_Int remainder = totalRows_ % nproc_;
-
-      iLower_ = rowsPerProc * iproc_ + std::min<HYPRE_Int>(iproc_, remainder);
-      iUpper_ = rowsPerProc * (iproc_ + 1) + std::min<HYPRE_Int>(iproc_ + 1, remainder) - 1;
-      numRows_ = iUpper_ - iLower_ + 1;
-
-      std::cout << "  Rank: " << std::setw(4) << iproc_ << ":: iLower = "
-        << std::setw(9) << iLower_ << "; iUpper = "
-        << std::setw(9) << iUpper_ << "; numRows = "
-        << numRows_ << std::endl;
-    }
-
     void HypreSystem::destroy_system()
     {
       if (mat_) HYPRE_IJMatrixDestroy(mat_);
@@ -327,11 +314,33 @@ namespace nalu {
       if (precond_) precondDestroyPtr_(precond_);
     }
 
+    void HypreSystem::init_row_decomposition()
+    {
+      if (iproc_ == 0)
+        printf("Computing row decomposition\n");
+
+      HYPRE_Int rowsPerProc = totalRows_ / nproc_;
+      HYPRE_Int remainder = totalRows_ % nproc_;
+
+      iLower_ = rowsPerProc * iproc_ + std::min<HYPRE_Int>(iproc_, remainder);
+      iUpper_ = rowsPerProc * (iproc_ + 1) + std::min<HYPRE_Int>(iproc_ + 1, remainder) - 1;
+      numRows_ = iUpper_ - iLower_ + 1;
+
+      MPI_Barrier(comm_);
+      std::cout << "  Rank: " << std::setw(4) << iproc_ << " :: iLower = "
+		<< std::setw(9) << iLower_ << "; iUpper = "
+		<< std::setw(9) << iUpper_ << "; numRows = "
+		<< numRows_ << std::endl;
+      MPI_Barrier(comm_);
+      fflush(stdout);
+    }
+
     void HypreSystem::init_system()
     {
+      MPI_Barrier(comm_);
       auto start = std::chrono::system_clock::now();
       if (iproc_ == 0)
-        std::cout << "Initializing data HYPRE structures... ";
+        printf("Initializing HYPRE data structures\n");
 
       HYPRE_IJMatrixCreate(comm_, iLower_, iUpper_, iLower_, iUpper_, &mat_);
       HYPRE_IJMatrixSetObjectType(mat_, HYPRE_PARCSR);
@@ -359,21 +368,18 @@ namespace nalu {
       HYPRE_ParVectorSetConstantValues(parSlnRef_, 0.0);
 
       MPI_Barrier(comm_);
-      if (iproc_ == 0) {
-        auto stop = std::chrono::system_clock::now();
-        std::chrono::duration<double> elapsed = stop - start;
-        std::cout << elapsed.count() << " seconds" << std::endl;
-
-        timers_.emplace_back("Initialize system", elapsed.count());
-      }
+      auto stop = std::chrono::system_clock::now();
+      std::chrono::duration<double> elapsed = stop - start;
+      timers_.emplace_back("Initialize system", elapsed.count());
+      MPI_Barrier(comm_);
+      fflush(stdout);
     }
 
     void HypreSystem::finalize_system()
     {
       auto start = std::chrono::system_clock::now();
-      if (iproc_ == 0) {
-        std::cout << "Assembling data HYPRE structures... ";
-      }
+      if (iproc_ == 0)
+        printf("Assembling HYPRE data structures\n");
 
       HYPRE_IJMatrixAssemble(mat_);
       HYPRE_IJVectorAssemble(rhs_);
@@ -388,17 +394,21 @@ namespace nalu {
       }
 
       MPI_Barrier(comm_);
-      if (iproc_ == 0) {
-        auto stop = std::chrono::system_clock::now();
-        std::chrono::duration<double> elapsed = stop - start;
-        std::cout << elapsed.count() << " seconds" << std::endl;
-        timers_.emplace_back("Finalize system", elapsed.count());
-      }
+      auto stop = std::chrono::system_clock::now();
+      std::chrono::duration<double> elapsed = stop - start;
+      timers_.emplace_back("Finalize system", elapsed.count());
+      if (iproc_ == 0)
+        printf("  ... Done assembling HYPRE data structures\n");
+      MPI_Barrier(comm_);
+      fflush(stdout);
     }
 
     void HypreSystem::solve()
     {
       finalize_system();
+
+      if (iproc_ == 0)
+        printf("Setting up preconditioner\n");
 
       auto start = std::chrono::system_clock::now();
       if (usePrecond_) {
@@ -409,10 +419,18 @@ namespace nalu {
       MPI_Barrier(comm_);
       auto stop1 = std::chrono::system_clock::now();
       std::chrono::duration<double> setup = stop1 - start;
+      MPI_Barrier(comm_);
+      fflush(stdout);
+
+      if (iproc_ == 0)
+        printf("Solving the system\n");
+
       solverSolvePtr_(solver_, parMat_, parRhs_, parSln_);
       MPI_Barrier(comm_);
       auto stop2 = std::chrono::system_clock::now();
       std::chrono::duration<double> solve = stop2 - stop1;
+      MPI_Barrier(comm_);
+      fflush(stdout);
 
       if (iproc_ == 0) {
         timers_.emplace_back("Preconditioner setup", setup.count());
@@ -494,7 +512,7 @@ namespace nalu {
     void HypreSystem::hypre_matrix_set_values()
     {
       if (iproc_==0)
-	std::cout << "Loading matrix into HYPRE_IJMatrix... ";
+	std::cout << "  ... loading matrix into HYPRE_IJMatrix" << std::endl;
 
       auto start = std::chrono::system_clock::now();
 
@@ -527,20 +545,20 @@ namespace nalu {
       HYPRE_IJMatrixSetValues2(mat_, nnz_this_rank, NULL, rows_.data(), NULL, cols_.data(), vals_.data());
 #endif
 
+      MPI_Barrier(comm_);
       auto stop = std::chrono::system_clock::now();
       std::chrono::duration<double> elapsed = stop - start;
-      if (iproc_ == 0)
-	std::cout << elapsed.count() << " seconds" << std::endl;
       timers_.emplace_back("Build HYPRE matrix", elapsed.count());
+      MPI_Barrier(comm_);
+      fflush(stdout);
     }
 
     void HypreSystem::hypre_vector_set_values(HYPRE_IJVector& vec)
     {
       if (iproc_==0)
-	std::cout << "Loading vector into HYPRE_IJVector... ";
+	std::cout << "  ... loading vector into HYPRE_IJVector" << std::endl;
 
       auto start = std::chrono::system_clock::now();
-
 
 #if defined(HYPRE_USING_GPU)
       HYPRE_Int * d_indices;
@@ -566,11 +584,12 @@ namespace nalu {
       HYPRE_IJVectorSetValues(vec, iUpper_-iLower_+1, vector_indices_.data(), vector_values_.data());
 #endif
 
+      MPI_Barrier(comm_);
       auto stop = std::chrono::system_clock::now();
       std::chrono::duration<double> elapsed = stop - start;
-      if (iproc_ == 0)
-	std::cout << elapsed.count() << " seconds" << std::endl;
       timers_.emplace_back("Build HYPRE vector", elapsed.count());
+      MPI_Barrier(comm_);
+      fflush(stdout);
     }
 
     /********************************************************************************/
@@ -619,11 +638,9 @@ namespace nalu {
      *******************/
     void HypreSystem::load_hypre_native()
     {
-      MPI_Barrier(comm_);
       auto start = std::chrono::system_clock::now();
-      if (iproc_ == 0) {
-        std::cout << "Loading HYPRE IJ files... ";
-      }
+      if (iproc_ == 0)
+        std::cout << "Loading HYPRE IJ files" << std::endl;
 
       YAML::Node linsys = inpfile_["linear_system"];
 
@@ -664,6 +681,7 @@ namespace nalu {
         << std::setw(9) << iUpper_ << "; numRows = "
         << numRows_ << std::endl;
       MPI_Barrier(comm_);
+      fflush(stdout);
     }
 
     /*******************
@@ -671,7 +689,6 @@ namespace nalu {
      *******************/
     void HypreSystem::determine_ij_system_sizes(std::string matfile, int nfiles)
     {
-      MPI_Barrier(comm_);
       auto start = std::chrono::system_clock::now();
 
       HYPRE_Int ilower, iupper, jlower, jupper;
@@ -706,9 +723,9 @@ namespace nalu {
       MPI_Barrier(comm_);
       auto stop = std::chrono::system_clock::now();
       std::chrono::duration<double> elapsed = stop - start;
-      if (iproc_==0) 
-	std::cout << elapsed.count() << " seconds" << std::endl;
       timers_.emplace_back("IJ : determine system size", elapsed.count());
+      MPI_Barrier(comm_);
+      fflush(stdout);
     }
 
     /*******************
@@ -773,6 +790,8 @@ namespace nalu {
       auto stop = std::chrono::system_clock::now();
       std::chrono::duration<double> elapsed = stop - start;
       timers_.emplace_back("IJ : read and build matrix", elapsed.count());
+      MPI_Barrier(comm_);
+      fflush(stdout);
     }
 
     /*******************
@@ -832,6 +851,8 @@ namespace nalu {
       auto stop = std::chrono::system_clock::now();
       std::chrono::duration<double> elapsed = stop - start;
       timers_.emplace_back("IJ : read and build vector", elapsed.count());
+      MPI_Barrier(comm_);
+      fflush(stdout);
     }
 
     /********************************************************************************/
@@ -900,9 +921,9 @@ namespace nalu {
       MPI_Barrier(comm_);
       auto stop = std::chrono::system_clock::now();
       std::chrono::duration<double> elapsed = stop - start;
-      if (iproc_==0)
-	std::cout << elapsed.count() << " seconds" << std::endl;
       timers_.emplace_back("Matrix market : determine system size", elapsed.count());
+      MPI_Barrier(comm_);
+      fflush(stdout);
       fclose(fh);
     }
   
@@ -912,6 +933,9 @@ namespace nalu {
     void HypreSystem::build_mm_matrix(std::string matfile)
     {
       MPI_Barrier(comm_);
+      if (iproc_==0)
+	std::cout << "Reading from " << matfile << " into HYPRE_IJMatrix" << std::endl;
+
       auto start = std::chrono::system_clock::now();
 
       FILE* fh;
@@ -963,9 +987,9 @@ namespace nalu {
       MPI_Barrier(comm_);
       auto stop = std::chrono::system_clock::now();
       std::chrono::duration<double> elapsed = stop - start;
-      if (iproc_==0)
-	std::cout << elapsed.count() << " seconds" << std::endl;
       timers_.emplace_back("Matrix market : read and build matrix", elapsed.count());
+      MPI_Barrier(comm_);
+      fflush(stdout);
       fclose(fh);
     }
 
@@ -975,6 +999,9 @@ namespace nalu {
     void HypreSystem::build_mm_vector(std::string mmfile, HYPRE_IJVector& vec)
     {
       MPI_Barrier(comm_);
+      if (iproc_==0)
+	std::cout << "Reading from " << mmfile << " into HYPRE_IJVector" << std::endl;
+
       auto start = std::chrono::system_clock::now();
 
       FILE* fh;
@@ -982,9 +1009,6 @@ namespace nalu {
       int err;
       int msize, nsize;
       double value;
-
-      if (iproc_==0)
-	std::cout << "Reading array into HYPRE_IJVector.... ";
 
       if ((fh = fopen(mmfile.c_str(), "r")) == NULL) {
         throw std::runtime_error("Cannot open matrix file: " + mmfile);
@@ -1021,9 +1045,9 @@ namespace nalu {
       MPI_Barrier(comm_);
       auto stop = std::chrono::system_clock::now();
       std::chrono::duration<double> elapsed = stop - start;
-      if (iproc_==0)
-	std::cout << elapsed.count() << " seconds" << std::endl;
       timers_.emplace_back("Matrix market : read and build vector", elapsed.count());
+      MPI_Barrier(comm_);
+      fflush(stdout);
       fclose(fh);
     }
 } // namespace nalu

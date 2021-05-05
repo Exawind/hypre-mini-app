@@ -43,24 +43,14 @@ endif()
 ########################## HIP ####################################
 if (ENABLE_HIP)
   find_package(HIP REQUIRED)
-  find_package(rocThrust REQUIRED) 
-  find_package(rocRand REQUIRED)
-  find_package(rocBlas REQUIRED)
-  find_package(rocSparse REQUIRED)
-  #if (NOT DEFINED AMD_ARCH)
+  if (NOT DEFINED AMD_ARCH)
     # Set default AMD architectures (based on Tulip for now)
-  #  set(AMD_ARCH "gfx906,gfx908")
-  #endif()
-  #set(GPU_TARGETS "gfx906" CACHE STRING "GPU targets to compile for")
-  #set(GPU_TARGETS "gfx908" CACHE STRING "GPU targets to compile for")
-  
-  message(STATUS "Found HIP Toolkit = ${HIP_VERSION} (${HIP_LIBRARY_DIR})")
+    set(AMD_ARCH "gfx906,gfx908")
+  endif()
+
+  message(STATUS "HIP: ${HIP_VERSION}, platform = ${HIP_PLATFORM}, compiler = ${HIP_COMPILER}")
   target_link_libraries(hypre_app_lib PUBLIC
-    hip::device
-    roc::rocthrust
-    roc::rocrand
-    roc::rocblas
-    roc::rocsparse)
+    hip::host)
 endif()
 
 

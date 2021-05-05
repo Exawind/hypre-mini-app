@@ -7,13 +7,6 @@
 #include "krylov.h"
 #include "HYPRE.h"
 
-#if defined(HYPRE_USING_CUDA)
-#include <cuda_runtime.h>
-#elif defined(HYPRE_USING_HIP)
-#include <hip/hip_runtime.h>
-#endif
-
-
 #include "yaml-cpp/yaml.h"
 
 extern "C"
