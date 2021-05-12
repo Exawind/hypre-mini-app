@@ -49,8 +49,8 @@ int main(int argc, char* argv[])
     cudaMemGetInfo(&free, &total);
     cudaDeviceProp prop;
     cudaGetDeviceProperties(&prop, device);
-    printf("\trank=%d : %s %s %d : %s : device=%d of %d : free memory=%1.8g GB, total memory=%1.8g GB\n",
-	   iproc,__FUNCTION__,__FILE__,__LINE__,prop.name,device,count,free/1.e9,total/1.e9);
+    printf("\trank=%d : %s %s %d : %s (cc=%d.%d): device=%d of %d : free memory=%1.8g GB, total memory=%1.8g GB\n",
+	   iproc,__FUNCTION__,__FILE__,__LINE__,prop.name,prop.major,prop.minor,device,count,free/1.e9,total/1.e9);
 #endif
 
 #ifdef HYPRE_USING_HIP
@@ -131,8 +131,8 @@ int main(int argc, char* argv[])
 
 #ifdef HYPRE_USING_CUDA
     cudaMemGetInfo(&free, &total);
-    printf("\trank=%d : %s %s %d : %s : device=%d of %d : free memory=%1.8g GB, total memory=%1.8g GB\n",
-	   iproc,__FUNCTION__,__FILE__,__LINE__,prop.name,device,count,free/1.e9,total/1.e9);
+    printf("\trank=%d : %s %s %d : %s (cc=%d.%d): device=%d of %d : free memory=%1.8g GB, total memory=%1.8g GB\n",
+	   iproc,__FUNCTION__,__FILE__,__LINE__,prop.name,prop.major,prop.minor,device,count,free/1.e9,total/1.e9);
 #endif
 
 #ifdef HYPRE_USING_HIP
