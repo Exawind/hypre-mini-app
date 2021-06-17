@@ -110,7 +110,7 @@ int main(int argc, char* argv[])
    /* default execution policy */
    HYPRE_SetExecutionPolicy(default_exec_policy);
 
-   HYPRE_CSRMatrixSetSpGemmUseCusparse(false);
+   HYPRE_SetSpGemmUseCusparse(false);
 #endif
 
     auto start = std::chrono::system_clock::now();
