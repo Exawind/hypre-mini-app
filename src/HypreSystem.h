@@ -21,6 +21,18 @@ extern "C"
 
 namespace nalu {
 
+    namespace {
+        template<typename T>
+        T get_optional(YAML::Node& node, std::string key, T default_value)
+        {
+            if (node[key])
+                return node[key].as<T>();
+            else
+                return default_value;
+        }
+    }
+
+
 class HypreSystem
 {
 public:
@@ -101,7 +113,7 @@ private:
     void setup_fgmres();
     void setup_bicg();
 
-    
+
     //! MPI Communicator object
     MPI_Comm comm_;
 
