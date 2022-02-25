@@ -116,3 +116,4 @@ target_compile_options(hypre_app_lib PRIVATE $<$<BOOL:${ENABLE_WERROR}>:-Werror>
 
 target_link_libraries(${hypre_app_name} PRIVATE hypre_app_lib)
 add_subdirectory(src)
+install(${hypre_app_name})

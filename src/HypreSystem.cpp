@@ -245,7 +245,7 @@ namespace nalu {
         HYPRE_ParCSRGMRESSetTol(solver_, get_optional(node, "tolerance", 1.0e-5));
         HYPRE_ParCSRGMRESSetMaxIter(solver_, get_optional(node, "max_iterations", 1000));
         HYPRE_ParCSRGMRESSetKDim(solver_, get_optional(node, "kspace", 10));
-        HYPRE_ParCSRGMRESSetCGS(solver_, get_optional(node, "cgs", 0));
+        //HYPRE_ParCSRGMRESSetCGS(solver_, get_optional(node, "cgs", 0));
         HYPRE_ParCSRGMRESSetPrintLevel(solver_, get_optional(node, "print_level", 4));
 
         solverDestroyPtr_ = &HYPRE_ParCSRGMRESDestroy;
