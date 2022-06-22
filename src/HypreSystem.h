@@ -6,6 +6,8 @@
 #include "HYPRE_parcsr_mv.h"
 #include "krylov.h"
 #include "HYPRE.h"
+#include "_hypre_parcsr_ls.h"
+#include "_hypre_parcsr_mv.h"
 
 #include "yaml-cpp/yaml.h"
 
@@ -199,6 +201,8 @@ private:
     bool checkSolution_{false};
     bool outputSystem_{false};
     bool usePrecond_{true};
+	bool writeAmgMatrices_{false};
+
 };
 
 } // namespace nalu

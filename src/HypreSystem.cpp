@@ -12,6 +12,11 @@ namespace nalu {
     void HypreSystem::load()
     {
         YAML::Node linsys = inpfile_["linear_system"];
+        if (linsys["write_amg_matrices"])
+		{
+			if (linsys["write_amg_matrices"].as<bool>())
+				writeAmgMatrices_ = true;
+		}
         std::string mat_format = get_optional<std::string>(linsys, "type", "matrix_market") ;
 
         if (mat_format == "matrix_market") {
@@ -404,18 +409,42 @@ namespace nalu {
         MPI_Barrier(comm_);
         fflush(stdout);
 
+		/* extract AMG matrices */
+		if (writeAmgMatrices_)
+		{
+			YAML::Node linsys = inpfile_["linear_system"];
+			std::string matfile = linsys["matrix_file"].as<std::string>();
+			std::size_t pos = matfile.rfind(".");
+			hypre_ParAMGData   *amg_data = (hypre_ParAMGData*) precond_;
+			hypre_ParCSRMatrix **A_array = hypre_ParAMGDataAArray(amg_data);
+			int num_levels               = hypre_ParAMGDataNumLevels(amg_data);
+			for (int i=0; i<num_levels; ++i)
+			{
+				char fname[1024];
+				sprintf(fname,"%s_level_%d.IJ",matfile.substr(0,pos).c_str(),i);
+				hypre_ParCSRMatrixPrintIJ(A_array[i], 0, 0, fname);
+			}
+			MPI_Barrier(comm_);
+		}
+		auto stop2 = std::chrono::system_clock::now();
+		std::chrono::duration<double> write_operators = stop2 - stop1;
+		MPI_Barrier(comm_);
+		fflush(stdout);
+
         if (iproc_ == 0)
             printf("Solving the system\n");
 
         solverSolvePtr_(solver_, parMat_, parRhs_, parSln_);
         MPI_Barrier(comm_);
-        auto stop2 = std::chrono::system_clock::now();
-        std::chrono::duration<double> solve = stop2 - stop1;
+        auto stop3 = std::chrono::system_clock::now();
+        std::chrono::duration<double> solve = stop3 - stop2;
         MPI_Barrier(comm_);
         fflush(stdout);
 
         if (iproc_ == 0) {
             timers_.emplace_back("Preconditioner setup", setup.count());
+			if (writeAmgMatrices_)
+				timers_.emplace_back("Write AMG Matrices", write_operators.count());
             timers_.emplace_back("Solve", solve.count());
         }
 
