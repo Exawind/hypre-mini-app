@@ -124,12 +124,12 @@ int main(int argc, char* argv[])
     HYPRE_SetExecutionPolicy(default_exec_policy);
 
     YAML::Node node = inpfile["solver_settings"];
-    if (nalu::get_optional(node, "spgemm_use_cusparse", 0)==1) {
-        std::cout << "Using CUSPARSE SpGemm." << std::endl;
-        HYPRE_SetSpGemmUseCusparse(true);
+    if (nalu::get_optional(node, "spgemm_use_vendor", 0)==1) {
+        std::cout << "Using VENDOR SpGemm." << std::endl;
+        HYPRE_SetSpGemmUseVendor(true);
     } else {
-        std::cout << "NOT Using CUSPARSE SpGemm." << std::endl;
-        HYPRE_SetSpGemmUseCusparse(false);
+        std::cout << "NOT Using VENDOR SpGemm." << std::endl;
+        HYPRE_SetSpGemmUseVendor(false);
     }
 #endif
 
