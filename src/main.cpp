@@ -125,26 +125,26 @@ int main(int argc, char* argv[])
 
     YAML::Node node = inpfile["solver_settings"];
     if (nalu::get_optional(node, "spgemm_use_vendor", 0)==1) {
-        std::cout << "Using VENDOR SpGemm." << std::endl;
+        if (!iproc) std::cout << "Using VENDOR SpGemm." << std::endl;
         HYPRE_SetSpGemmUseVendor(true);
     } else {
-        std::cout << "NOT Using VENDOR SpGemm." << std::endl;
+        if (!iproc) std::cout << "NOT Using VENDOR SpGemm." << std::endl;
         HYPRE_SetSpGemmUseVendor(false);
     }
 
     if (nalu::get_optional(node, "spmv_use_vendor", 0)==1) {
-        std::cout << "Using VENDOR SpMV." << std::endl;
+        if (!iproc) std::cout << "Using VENDOR SpMV." << std::endl;
         HYPRE_SetSpMVUseVendor(true);
     } else {
-        std::cout << "NOT Using VENDOR SpMV." << std::endl;
+        if (!iproc) std::cout << "NOT Using VENDOR SpMV." << std::endl;
         HYPRE_SetSpMVUseVendor(false);
     }
 
     if (nalu::get_optional(node, "sptrans_use_vendor", 0)==1) {
-        std::cout << "Using VENDOR SpTrans." << std::endl;
+        if (!iproc) std::cout << "Using VENDOR SpTrans." << std::endl;
         HYPRE_SetSpTransUseVendor(true);
     } else {
-        std::cout << "NOT Using VENDOR SpTrans." << std::endl;
+        if (!iproc) std::cout << "NOT Using VENDOR SpTrans." << std::endl;
         HYPRE_SetSpTransUseVendor(false);
     }
 #endif
