@@ -74,8 +74,8 @@ if (ENABLE_UMPIRE)
   set(CMAKE_PREFIX_PATH ${UMPIRE_DIR} ${CMAKE_PREFIX_PATH})
   message(STATUS "Looking for Umpire at ${UMPIRE_DIR}")
   find_package(umpire REQUIRED)
-  message(STATUS "Found Umpire at ${UMPIRE_DIR}")
-  target_include_directories(hypre_app_lib SYSTEM PUBLIC ${UMPIRE_DIR}/../../../include)
+  message(STATUS "Found Umpire at ${umpire_DIR}")
+  target_include_directories(hypre_app_lib SYSTEM PUBLIC ${umpire_DIR}/../../../include)
 endif()
 
 
