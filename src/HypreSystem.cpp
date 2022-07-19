@@ -956,7 +956,7 @@ namespace nalu {
         HYPRE_Int irow, icol;
         double value;
 
-        if ((fh = fopen(matfile.c_str(), "rt")) == NULL) {
+        if ((fh = fopen(matfile.c_str(), "r")) == NULL) {
             throw std::runtime_error("Cannot open matrix file: " + matfile);
         }
 
@@ -976,10 +976,10 @@ namespace nalu {
         vals_.resize(0);
         for (int i=0; i < nnz; i++)
         {
-            fscanf(fh, "%d %d %lf\n", &irow, &icol, &value);
 #ifdef HYPRE_BIGINT
-            //fscanf(fh, "%lld %lld %lf\n", &irow, &icol, &value);
+            fscanf(fh, "%lld %lld %lf\n", &irow, &icol, &value);
 #else
+            fscanf(fh, "%d %d %lf\n", &irow, &icol, &value);
 #endif
 
             irow--;
