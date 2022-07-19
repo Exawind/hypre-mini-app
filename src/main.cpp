@@ -76,7 +76,19 @@ int main(int argc, char* argv[])
 
     HYPRE_Int ret = HYPRE_Init();
 
-#ifdef HYPRE_USING_CUB_ALLOCATOR
+	auto start = std::chrono::system_clock::now();
+
+    if (argc != 2) {
+        std::cout << "ERROR!! Incorrect arguments passed to program." << std::endl
+                  << "Usage: hypre_app INPUT_FILE" << std::endl << std::endl;
+        return 1;
+    }
+
+    std::string yaml_filename(argv[1]);
+    YAML::Node inpfile = YAML::LoadFile(yaml_filename);
+    YAML::Node node = inpfile["solver_settings"];
+
+#ifdef HYPRE_USING_DEVICE_POOL
     /* CUB Allocator */
     hypre_uint mempool_bin_growth   = 8,
         mempool_min_bin      = 3,
@@ -92,27 +104,14 @@ int main(int argc, char* argv[])
     /* Setup Umpire pools */
     HYPRE_SetUmpireDevicePoolName("HYPRE_DEVICE_POOL");
     HYPRE_SetUmpirePinnedPoolName("HYPRE_PINNED_POOL");
-    HYPRE_SetUmpireDevicePoolSize(8LL * 1024 * 1024 * 1024);
-    HYPRE_SetUmpirePinnedPoolSize(1LL * 1024 * 1024 * 1024);
-
-    //HYPRE_SetUmpireUMPoolName("HYPRE_UM_POOL");
-    //HYPRE_SetUmpireHostPoolName("HYPRE_HOST_POOL");
-    //HYPRE_SetUmpireUMPoolSize(1LL * 1024 * 1024 * 1024);
-    //HYPRE_SetUmpireHostPoolSize(1LL * 1024 * 1024 * 1024 / 1024);
+	long long pool_size = nalu::get_optional(node, "umpire_device_pool_mbs", 4096);
+	if (!iproc) std::cout << "umpire_device_pool_mbs=" << pool_size << std::endl;
+	HYPRE_SetUmpireDevicePoolSize(pool_size * 1024 * 1024);
+	pool_size = nalu::get_optional(node, "umpire_pinned_pool_mbs", 512);
+	if (!iproc) std::cout << "umpire_pinned_pool_mbs=" << pool_size << std::endl;
+	HYPRE_SetUmpirePinnedPoolSize(pool_size * 1024 * 1024);
 #endif
 
-
-    auto start = std::chrono::system_clock::now();
-
-
-    if (argc != 2) {
-        std::cout << "ERROR!! Incorrect arguments passed to program." << std::endl
-                  << "Usage: hypre_app INPUT_FILE" << std::endl << std::endl;
-        return 1;
-    }
-
-    std::string yaml_filename(argv[1]);
-    YAML::Node inpfile = YAML::LoadFile(yaml_filename);
 
 #ifdef HYPRE_USING_GPU
     HYPRE_ExecutionPolicy default_exec_policy = HYPRE_EXEC_DEVICE;
@@ -124,7 +123,6 @@ int main(int argc, char* argv[])
     /* default execution policy */
     HYPRE_SetExecutionPolicy(default_exec_policy);
 
-    YAML::Node node = inpfile["solver_settings"];
     if (nalu::get_optional(node, "spgemm_use_vendor", 0)==1) {
         if (!iproc) std::cout << "Using VENDOR SpGemm." << std::endl;
         HYPRE_SetSpGemmUseVendor(true);
