@@ -956,7 +956,7 @@ namespace nalu {
         HYPRE_Int irow, icol;
         double value;
 
-        if ((fh = fopen(matfile.c_str(), "r")) == NULL) {
+        if ((fh = fopen(matfile.c_str(), "rt")) == NULL) {
             throw std::runtime_error("Cannot open matrix file: " + matfile);
         }
 
