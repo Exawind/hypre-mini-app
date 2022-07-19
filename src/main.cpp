@@ -90,15 +90,14 @@ int main(int argc, char* argv[])
 
 #if defined(HYPRE_USING_UMPIRE)
     /* Setup Umpire pools */
-    HYPRE_SetUmpireDevicePoolName("HYPRE_DEVICE_POOL");
-    HYPRE_SetUmpirePinnedPoolName("HYPRE_PINNED_POOL");
-    HYPRE_SetUmpireDevicePoolSize(8LL * 1024 * 1024 * 1024);
-    HYPRE_SetUmpirePinnedPoolSize(1LL * 1024 * 1024 * 1024);
-
-    //HYPRE_SetUmpireUMPoolName("HYPRE_UM_POOL");
+    //HYPRE_SetUmpireDevicePoolName("HYPRE_DEVICE_POOL");
+    HYPRE_SetUmpireUMPoolName("HYPRE_UM_POOL");
     //HYPRE_SetUmpireHostPoolName("HYPRE_HOST_POOL");
-    //HYPRE_SetUmpireUMPoolSize(1LL * 1024 * 1024 * 1024);
+    //HYPRE_SetUmpirePinnedPoolName("HYPRE_PINNED_POOL");
+    //HYPRE_SetUmpireDevicePoolSize(4LL * 1024 * 1024 * 1024);
+    HYPRE_SetUmpireUMPoolSize(1LL * 1024 * 1024 * 1024);
     //HYPRE_SetUmpireHostPoolSize(1LL * 1024 * 1024 * 1024 / 1024);
+    //HYPRE_SetUmpirePinnedPoolSize(1LL * 1024 * 1024 * 1024 / 1024);
 #endif
 
 
