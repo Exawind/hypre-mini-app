@@ -81,7 +81,7 @@ private:
     void build_ij_matrix(std::string, int);
 
     //! Read IJ Vector into memory
-    void build_ij_vector(std::string, int, HYPRE_IJVector&);
+    void build_ij_vector(std::vector<std::string>&, int, std::vector<HYPRE_IJVector>&);
 
     //! Scan and load the Matrix Market file
     void build_mm_matrix(std::string);
@@ -93,10 +93,10 @@ private:
     void hypre_matrix_set_values();
 
     //! Build the HYPRE_IJVector from data loaded from either IJ or matrix market
-    void hypre_vector_set_values(HYPRE_IJVector& vec);
+    void hypre_vector_set_values(std::vector<HYPRE_IJVector>& vec, int component);
 
     //! Load the matrix into HYPRE_IJVector
-    void build_mm_vector(std::string, HYPRE_IJVector&);
+    void build_mm_vector(std::vector<std::string>&, std::vector<HYPRE_IJVector>&);
 
     //! Initialize hypre linear system
     void init_system();
@@ -137,30 +137,35 @@ private:
     //! HYPRE IJ Matrix
     HYPRE_IJMatrix mat_=NULL;
 
-    //! The rhs vector
-    HYPRE_IJVector rhs_=NULL;
-
-    //! The solution vector
-    HYPRE_IJVector sln_=NULL;
-
-    //! The solution vector
-    HYPRE_IJVector slnRef_=NULL;
-
     //! Instance of the Hypre parallel matrix
     HYPRE_ParCSRMatrix parMat_;
 
+    //! The rhs vector
+	std::vector<HYPRE_IJVector> rhs_;
+
     //! Instance of the Hypre parallel RHS vector
-    HYPRE_ParVector parRhs_;
+    std::vector<HYPRE_ParVector> parRhs_;
+
+    //! The solution vector
+	std::vector<HYPRE_IJVector> sln_;
 
     //! Instance of Hypre parallel solution vector
-    HYPRE_ParVector parSln_;
+    std::vector<HYPRE_ParVector> parSln_;
 
-    //! Instance of Hypre parallel solution vector
-    HYPRE_ParVector parSlnRef_;
+    //! The reference solution vector
+	std::vector<HYPRE_IJVector> slnRef_;
+
+    //! Instance of Hypre parallel reference solution vector
+    std::vector<HYPRE_ParVector> parSlnRef_;
 
     HYPRE_Solver solver_=NULL;
 
     HYPRE_Solver precond_=NULL;
+
+    //! The number of rhs/sln components
+	HYPRE_Int numComps_{1};
+	HYPRE_Int numSolves_{1};
+	HYPRE_Int numVectors_{1};
 
     //! Global number of rows in the linear system
     HYPRE_Int totalRows_{0};
@@ -197,12 +202,15 @@ private:
     int iproc_{0};
     int nproc_{0};
 
+    bool segregatedSolve_{true};
     bool solveComplete_{false};
     bool checkSolution_{false};
     bool outputSystem_{false};
+    bool outputSolution_{false};
     bool usePrecond_{true};
 	bool writeAmgMatrices_{false};
-
+	double atol_{1.e-8};
+	double rtol_{1.e-6};
 };
 
 } // namespace nalu
