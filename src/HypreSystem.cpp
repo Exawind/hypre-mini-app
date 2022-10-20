@@ -741,7 +741,7 @@ namespace nalu {
 
 			std::vector<std::string> rhsfile(numComps_);
 			std::vector<std::string> slnfile(numComps_);
-			if (numComps_==0)
+			if (numComps_==1 && linsys["rhs_file"])
 			{
 				rhsfile[0] = linsys["rhs_file"].as<std::string>();
 				if (linsys["sln_file"]) {
@@ -1031,7 +1031,7 @@ namespace nalu {
 
 		std::vector<std::string> rhsfile(numComps_);
 		std::vector<std::string> slnfile(numComps_);
-		if (numComps_==0)
+		if (numComps_==1 && linsys["rhs_file"])
 		{
 			rhsfile[0] = linsys["rhs_file"].as<std::string>();
 			if (linsys["sln_file"]) {
