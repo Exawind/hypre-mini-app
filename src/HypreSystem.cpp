@@ -29,6 +29,8 @@ namespace nalu {
 
         if (linsys["write_outputs"])
             outputSystem_ = linsys["write_outputs"].as<bool>();
+        if (linsys["write_solution"])
+            outputSolution_ = linsys["write_solution"].as<bool>();
 
         YAML::Node solver = inpfile_["solver_settings"];
         std::string method = solver["method"].as<std::string>();
@@ -236,6 +238,7 @@ namespace nalu {
         HYPRE_ParCSRCOGMRESSetMaxIter(solver_, get_optional(node, "max_iterations", 1000));
         HYPRE_ParCSRCOGMRESSetKDim(solver_, get_optional(node, "kspace", 10));
         HYPRE_ParCSRCOGMRESSetPrintLevel(solver_, get_optional(node, "print_level", 4));
+        HYPRE_ParCSRCOGMRESSetCGS(solver_, get_optional(node, "cgs", 0));
 
         solverDestroyPtr_ = &HYPRE_ParCSRCOGMRESDestroy;
         solverSetupPtr_ = &HYPRE_ParCSRCOGMRESSetup;
@@ -250,8 +253,8 @@ namespace nalu {
         HYPRE_ParCSRGMRESSetTol(solver_, get_optional(node, "tolerance", 1.0e-5));
         HYPRE_ParCSRGMRESSetMaxIter(solver_, get_optional(node, "max_iterations", 1000));
         HYPRE_ParCSRGMRESSetKDim(solver_, get_optional(node, "kspace", 10));
-        //HYPRE_ParCSRGMRESSetCGS(solver_, get_optional(node, "cgs", 0));
         HYPRE_ParCSRGMRESSetPrintLevel(solver_, get_optional(node, "print_level", 4));
+        //HYPRE_ParCSRGMRESSetCGS(solver_, get_optional(node, "cgs", 0));
 
         solverDestroyPtr_ = &HYPRE_ParCSRGMRESDestroy;
         solverSetupPtr_ = &HYPRE_ParCSRGMRESSetup;
@@ -294,9 +297,12 @@ namespace nalu {
     void HypreSystem::destroy_system()
     {
         if (mat_) HYPRE_IJMatrixDestroy(mat_);
-        if (rhs_) HYPRE_IJVectorDestroy(rhs_);
-        if (sln_) HYPRE_IJVectorDestroy(sln_);
-        if (slnRef_) HYPRE_IJVectorDestroy(slnRef_);
+		for (int i=0; i<rhs_.size(); ++i)
+			if (rhs_[i]) HYPRE_IJVectorDestroy(rhs_[i]);
+		for (int i=0; i<sln_.size(); ++i)
+			if (sln_[i]) HYPRE_IJVectorDestroy(sln_[i]);
+		for (int i=0; i<slnRef_.size(); ++i)
+			if (slnRef_[i]) HYPRE_IJVectorDestroy(slnRef_[i]);
         if (solver_) solverDestroyPtr_(solver_);
         if (precond_) precondDestroyPtr_(precond_);
     }
@@ -333,26 +339,44 @@ namespace nalu {
         HYPRE_IJMatrixSetObjectType(mat_, HYPRE_PARCSR);
         HYPRE_IJMatrixInitialize(mat_);
         HYPRE_IJMatrixGetObject(mat_, (void**)&parMat_);
-
-        HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &rhs_);
-        HYPRE_IJVectorSetObjectType(rhs_, HYPRE_PARCSR);
-        HYPRE_IJVectorInitialize(rhs_);
-        HYPRE_IJVectorGetObject(rhs_, (void**)&parRhs_);
-
-        HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &sln_);
-        HYPRE_IJVectorSetObjectType(sln_, HYPRE_PARCSR);
-        HYPRE_IJVectorInitialize(sln_);
-        HYPRE_IJVectorGetObject(sln_, (void**)&parSln_);
-
-        HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &slnRef_);
-        HYPRE_IJVectorSetObjectType(slnRef_, HYPRE_PARCSR);
-        HYPRE_IJVectorInitialize(slnRef_);
-        HYPRE_IJVectorGetObject(sln_, (void**)&parSlnRef_);
-
         HYPRE_IJMatrixSetConstantValues(mat_, 0.0);
-        HYPRE_ParVectorSetConstantValues(parRhs_, 0.0);
-        HYPRE_ParVectorSetConstantValues(parSln_, 0.0);
-        HYPRE_ParVectorSetConstantValues(parSlnRef_, 0.0);
+
+		rhs_.resize(numSolves_);
+		parRhs_.resize(numSolves_);
+		sln_.resize(numSolves_);
+		parSln_.resize(numSolves_);
+		if (checkSolution_)
+		{
+			slnRef_.resize(numSolves_);
+			parSlnRef_.resize(numSolves_);
+		}
+		for (int i=0; i<numSolves_; ++i)
+		{
+			HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &rhs_[i]);
+			HYPRE_IJVectorSetObjectType(rhs_[i], HYPRE_PARCSR);
+			HYPRE_IJVectorSetNumComponents(rhs_[i], numVectors_);
+			HYPRE_IJVectorInitialize(rhs_[i]);
+			HYPRE_IJVectorGetObject(rhs_[i], (void**)&parRhs_[i]);
+
+			HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &sln_[i]);
+			HYPRE_IJVectorSetObjectType(sln_[i], HYPRE_PARCSR);
+			HYPRE_IJVectorSetNumComponents(sln_[i], numVectors_);
+			HYPRE_IJVectorInitialize(sln_[i]);
+			HYPRE_IJVectorGetObject(sln_[i], (void**)&parSln_[i]);
+
+			HYPRE_ParVectorSetConstantValues(parRhs_[i], 0.0);
+			HYPRE_ParVectorSetConstantValues(parSln_[i], 0.0);
+
+			if (checkSolution_)
+			{
+				HYPRE_IJVectorCreate(comm_, iLower_, iUpper_, &slnRef_[i]);
+				HYPRE_IJVectorSetObjectType(slnRef_[i], HYPRE_PARCSR);
+				HYPRE_IJVectorSetNumComponents(slnRef_[i], numVectors_);
+				HYPRE_IJVectorInitialize(slnRef_[i]);
+				HYPRE_IJVectorGetObject(slnRef_[i], (void**)&parSlnRef_[i]);
+				HYPRE_ParVectorSetConstantValues(parSlnRef_[i], 0.0);
+			}
+		}
 
         MPI_Barrier(comm_);
         auto stop = std::chrono::system_clock::now();
@@ -369,16 +393,20 @@ namespace nalu {
             printf("Assembling HYPRE data structures\n");
 
         HYPRE_IJMatrixAssemble(mat_);
-        HYPRE_IJVectorAssemble(rhs_);
-        HYPRE_IJVectorAssemble(sln_);
         HYPRE_IJMatrixGetObject(mat_, (void**)&parMat_);
-        HYPRE_IJVectorGetObject(rhs_, (void**)&(parRhs_));
-        HYPRE_IJVectorGetObject(sln_, (void**)&(parSln_));
 
-        if (checkSolution_) {
-            HYPRE_IJVectorAssemble(slnRef_);
-            HYPRE_IJVectorGetObject(sln_, (void**)&(parSlnRef_));
-        }
+		for (int i=0; i<numSolves_; ++i)
+		{
+			HYPRE_IJVectorAssemble(rhs_[i]);
+			HYPRE_IJVectorAssemble(sln_[i]);
+			HYPRE_IJVectorGetObject(rhs_[i], (void**)&(parRhs_[i]));
+			HYPRE_IJVectorGetObject(sln_[i], (void**)&(parSln_[i]));
+
+			if (checkSolution_) {
+				HYPRE_IJVectorAssemble(slnRef_[i]);
+				HYPRE_IJVectorGetObject(slnRef_[i], (void**)&(parSlnRef_[i]));
+			}
+		}
 
         MPI_Barrier(comm_);
         auto stop = std::chrono::system_clock::now();
@@ -393,53 +421,60 @@ namespace nalu {
     void HypreSystem::solve()
     {
         finalize_system();
+		std::chrono::duration<double> setup(0);
+		std::chrono::duration<double> write_operators (0);
+		std::chrono::duration<double> solve (0);
 
-        if (iproc_ == 0)
-            printf("Setting up preconditioner\n");
-
-        auto start = std::chrono::system_clock::now();
-        if (usePrecond_) {
-            solverPrecondPtr_(
-                solver_, precondSolvePtr_, precondSetupPtr_, precond_);
-        }
-        solverSetupPtr_(solver_, parMat_, parRhs_, parSln_);
-        MPI_Barrier(comm_);
-        auto stop1 = std::chrono::system_clock::now();
-        std::chrono::duration<double> setup = stop1 - start;
-        MPI_Barrier(comm_);
-        fflush(stdout);
-
-		/* extract AMG matrices */
-		if (writeAmgMatrices_)
+		for (int i=0; i<numSolves_; ++i)
 		{
-			YAML::Node linsys = inpfile_["linear_system"];
-			std::string matfile = linsys["matrix_file"].as<std::string>();
-			std::size_t pos = matfile.rfind(".");
-			hypre_ParAMGData   *amg_data = (hypre_ParAMGData*) precond_;
-			hypre_ParCSRMatrix **A_array = hypre_ParAMGDataAArray(amg_data);
-			int num_levels               = hypre_ParAMGDataNumLevels(amg_data);
-			for (int i=0; i<num_levels; ++i)
-			{
-				char fname[1024];
-				sprintf(fname,"%s_level_%d.IJ",matfile.substr(0,pos).c_str(),i);
-				hypre_ParCSRMatrixPrintIJ(A_array[i], 0, 0, fname);
+			if (iproc_ == 0)
+				printf("Setting up preconditioner\n");
+
+			auto start = std::chrono::system_clock::now();
+			if (usePrecond_) {
+				solverPrecondPtr_(
+					solver_, precondSolvePtr_, precondSetupPtr_, precond_);
 			}
+			solverSetupPtr_(solver_, parMat_, parRhs_[i], parSln_[i]);
 			MPI_Barrier(comm_);
+			auto stop1 = std::chrono::system_clock::now();
+			setup += stop1 - start;
+			MPI_Barrier(comm_);
+			fflush(stdout);
+
+			/* extract AMG matrices */
+			if (writeAmgMatrices_)
+			{
+				YAML::Node linsys = inpfile_["linear_system"];
+				std::string matfile = linsys["matrix_file"].as<std::string>();
+				std::size_t pos = matfile.rfind(".");
+				hypre_ParAMGData   *amg_data = (hypre_ParAMGData*) precond_;
+				hypre_ParCSRMatrix **A_array = hypre_ParAMGDataAArray(amg_data);
+				int num_levels               = hypre_ParAMGDataNumLevels(amg_data);
+				for (int i=0; i<num_levels; ++i)
+				{
+					char fname[1024];
+					sprintf(fname,"%s_level_%d.IJ",matfile.substr(0,pos).c_str(),i);
+					hypre_ParCSRMatrixPrintIJ(A_array[i], 0, 0, fname);
+				}
+				MPI_Barrier(comm_);
+			}
+			auto stop2 = std::chrono::system_clock::now();
+			write_operators += stop2 - stop1;
+			MPI_Barrier(comm_);
+			fflush(stdout);
+
+			if (iproc_ == 0)
+				printf("Solving the system\n");
+
+			solverSolvePtr_(solver_, parMat_, parRhs_[i], parSln_[i]);
+			MPI_Barrier(comm_);
+			auto stop3 = std::chrono::system_clock::now();
+			solve += stop3 - stop2;
+			MPI_Barrier(comm_);
+			fflush(stdout);
+
 		}
-		auto stop2 = std::chrono::system_clock::now();
-		std::chrono::duration<double> write_operators = stop2 - stop1;
-		MPI_Barrier(comm_);
-		fflush(stdout);
-
-        if (iproc_ == 0)
-            printf("Solving the system\n");
-
-        solverSolvePtr_(solver_, parMat_, parRhs_, parSln_);
-        MPI_Barrier(comm_);
-        auto stop3 = std::chrono::system_clock::now();
-        std::chrono::duration<double> solve = stop3 - stop2;
-        MPI_Barrier(comm_);
-        fflush(stdout);
 
         if (iproc_ == 0) {
             timers_.emplace_back("Preconditioner setup", setup.count());
@@ -453,14 +488,34 @@ namespace nalu {
 
     void HypreSystem::output_linear_system()
     {
-        if (!outputSystem_) return;
+        if (!outputSystem_ and !outputSolution_) return;
 
         auto start = std::chrono::system_clock::now();
 
-        HYPRE_IJMatrixPrint(mat_, "IJM.mat");
-        HYPRE_IJVectorPrint(rhs_, "IJV.rhs");
-        HYPRE_IJVectorPrint(sln_, "IJV.sln");
+		if (outputSystem_)
+		{
+			HYPRE_IJMatrixPrint(mat_, "IJM.mat");
+			for (int i=0; i<numSolves_; ++i)
+			{
+				std::string r = "IJV" +std::to_string(i) + ".rhs";
+				HYPRE_IJVectorPrint(rhs_[i], r.c_str());
+				std::string s = "IJV" +std::to_string(i) + ".sln";
+				HYPRE_IJVectorPrint(sln_[i], s.c_str());
+			}
+		}
 
+		if (outputSolution_)
+		{
+			for (int i=0; i<numSolves_; ++i)
+			{
+				for (int j=0; j<numVectors_; ++j)
+				{
+					HYPRE_IJVectorSetComponent(sln_[i], j);
+					std::string s = "IJV" +std::to_string(std::max(i,j)) + ".sln";
+					HYPRE_IJVectorPrint(sln_[i], s.c_str());
+				}
+			}
+		}
         MPI_Barrier(comm_);
         auto stop = std::chrono::system_clock::now();
         std::chrono::duration<double> elapsed = stop - start;
@@ -482,20 +537,63 @@ namespace nalu {
             throw std::runtime_error("Solve was not called before check_solution");
 
         auto start = std::chrono::system_clock::now();
-        double sol1, sol2, diff;
-        double maxerr = std::numeric_limits<double>::lowest();
+        double diff;
+        double maxrerr = std::numeric_limits<double>::lowest();
+        double maxaerr = std::numeric_limits<double>::lowest();
+        double avgrerr = 0;
+        double avgaerr = 0;
 
-        for (HYPRE_Int i=iLower_; i < iUpper_; i++) {
-            HYPRE_IJVectorGetValues(sln_, 1, &i, &sol1);
-            HYPRE_IJVectorGetValues(slnRef_, 1, &i, &sol2);
-            diff = sol1 - sol2;
-            maxerr = std::max(maxerr, std::fabs(diff));
-        }
+		HYPRE_Complex * dsln, * dslnRef, * hsln, * hslnRef;
+		HYPRE_Int n = iUpper_-iLower_+1;
 
-        double gmax;
-        MPI_Reduce(&maxerr, &gmax, 1, MPI_DOUBLE, MPI_MAX, 0, comm_);
-        if (iproc_ == 0)
-            std::cout << "Solution error: " << gmax << std::endl;
+		dsln    = hypre_TAlloc(HYPRE_Complex, n, HYPRE_MEMORY_DEVICE);
+		dslnRef = hypre_TAlloc(HYPRE_Complex, n, HYPRE_MEMORY_DEVICE);
+
+		hsln    = hypre_TAlloc(HYPRE_Complex, n, HYPRE_MEMORY_HOST);
+		hslnRef = hypre_TAlloc(HYPRE_Complex, n, HYPRE_MEMORY_HOST);
+
+		for (int j=0; j<numSolves_; ++j)
+		{
+			for (HYPRE_Int i=0; i < numVectors_; i++) {
+				HYPRE_IJVectorSetComponent(sln_[j], i);
+				HYPRE_IJVectorSetComponent(slnRef_[j], i);
+
+				HYPRE_IJVectorGetValues(sln_[j],    n, NULL, dsln);
+				HYPRE_IJVectorGetValues(slnRef_[j], n, NULL, dslnRef);
+
+				hypre_TMemcpy(hsln,    dsln,    HYPRE_Complex, n, HYPRE_MEMORY_HOST, HYPRE_MEMORY_DEVICE);
+				hypre_TMemcpy(hslnRef, dslnRef, HYPRE_Complex, n, HYPRE_MEMORY_HOST, HYPRE_MEMORY_DEVICE);
+
+				HYPRE_Int printCount=0;
+				bool isClose = true;
+				for (HYPRE_Int k=0; k < n; k++) {
+					diff = std::fabs(hsln[k] - hslnRef[k]);
+					double rhs = std::max(rtol_*std::max(std::fabs(hsln[k]),std::fabs(hslnRef[k])),atol_);
+					if (diff >= rhs)
+					{
+						isClose = false;
+						if (printCount<20 && iproc_==1)
+						{
+							std::cout << k+iLower_ << ":" << hsln[k] << " " << hslnRef[k]
+									  << " " << diff << " " << rhs << std::endl;
+							printCount++;
+						}
+					}
+				}
+				HYPRE_Int testAll=1;
+				HYPRE_Int test = isClose ? 1 : 0;
+				MPI_Reduce(&testAll, &test, 1, MPI_INT, MPI_MIN, 0, comm_);
+				if (iproc_ == 0 and !testAll)
+					std::cout << "Solve " << j << " comp " << i
+							  << " atol=" << atol_ << " rtol=" << rtol_
+							  << " allClose=" << testAll << std::endl;
+
+			}
+		}
+        hypre_TFree(dsln,    HYPRE_MEMORY_DEVICE);
+        hypre_TFree(dslnRef, HYPRE_MEMORY_DEVICE);
+        hypre_TFree(hsln,    HYPRE_MEMORY_HOST);
+        hypre_TFree(hslnRef, HYPRE_MEMORY_HOST);
 
         MPI_Barrier(comm_);
         auto stop = std::chrono::system_clock::now();
@@ -564,12 +662,24 @@ namespace nalu {
         fflush(stdout);
     }
 
-    void HypreSystem::hypre_vector_set_values(HYPRE_IJVector& vec)
+    void HypreSystem::hypre_vector_set_values(std::vector<HYPRE_IJVector>& vec, int component)
     {
         if (iproc_==0)
             std::cout << "  ... loading vector into HYPRE_IJVector" << std::endl;
 
         auto start = std::chrono::system_clock::now();
+
+		HYPRE_IJVector v;
+		if (numSolves_==1)
+		{
+			v = vec[0];
+			HYPRE_IJVectorSetComponent(v, component);
+		}
+		else
+		{
+			v = vec[component];
+			HYPRE_IJVectorSetComponent(v, 0);
+		}
 
 #if defined(HYPRE_USING_GPU)
         HYPRE_Int * d_indices;
@@ -582,17 +692,17 @@ namespace nalu {
         hypre_TMemcpy(d_indices, vector_indices_.data(), HYPRE_Int, N, HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
         hypre_TMemcpy(d_vals, vector_values_.data(), HYPRE_Complex, N, HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
 
-        /* Use the fast path */
-        //HYPRE_IJVectorSetMaxOnProcElmts(vec, N);
-        //HYPRE_IJVectorSetOffProcSendElmts(vec, 0);
-        //HYPRE_IJVectorSetOffProcRecvElmts(vec, 0);
+        /* Use the fast path. This probably doesn't work with multivectors yet */
+        //HYPRE_IJVectorSetMaxOnProcElmts(v, N);
+        //HYPRE_IJVectorSetOffProcSendElmts(v, 0);
+        //HYPRE_IJVectorSetOffProcRecvElmts(v, 0);
 
-        HYPRE_IJVectorSetValues(vec, iUpper_-iLower_+1, d_indices, d_vals);
+        HYPRE_IJVectorSetValues(v, iUpper_-iLower_+1, d_indices, d_vals);
 
         hypre_TFree(d_indices, HYPRE_MEMORY_DEVICE);
         hypre_TFree(d_vals, HYPRE_MEMORY_DEVICE);
 #else
-        HYPRE_IJVectorSetValues(vec, iUpper_-iLower_+1, vector_indices_.data(), vector_values_.data());
+        HYPRE_IJVectorSetValues(v, iUpper_-iLower_+1, vector_indices_.data(), vector_values_.data());
 #endif
 
         MPI_Barrier(comm_);
@@ -620,8 +730,39 @@ namespace nalu {
         if (nfiles == nproc_ && !useGPU)
             load_hypre_native();
         else {
+			numComps_ = get_optional(linsys, "num_components", 1);
+			segregatedSolve_ = (bool) get_optional(linsys, "segregated_solve", 1);
+			numSolves_ = segregatedSolve_ ? numComps_ : 1;
+			numVectors_ = segregatedSolve_ ? 1 : numComps_;
+			rtol_ = (double) get_optional(linsys, "rtol", 1.0e-6);
+			atol_ = (double) get_optional(linsys, "atol", 1.0e-8);
+
             std::string matfile = linsys["matrix_file"].as<std::string>();
-            std::string rhsfile = linsys["rhs_file"].as<std::string>();
+
+			std::vector<std::string> rhsfile(numComps_);
+			std::vector<std::string> slnfile(numComps_);
+			if (numComps_==0)
+			{
+				rhsfile[0] = linsys["rhs_file"].as<std::string>();
+				if (linsys["sln_file"]) {
+				    slnfile[0] = linsys["sln_file"].as<std::string>();
+					checkSolution_ = true;
+				}
+			}
+			else
+			{
+				int count=0;
+				for (int i=0; i<numComps_; ++i)
+				{
+					rhsfile[i] = linsys["rhs_file"+std::to_string(i)].as<std::string>();
+					std::string sfile = "sln_file"+std::to_string(i);
+					if (linsys[sfile]) {
+						slnfile[i] = linsys[sfile].as<std::string>();
+						count++;
+					}
+				}
+				if (count==numComps_) checkSolution_ = true;
+			}
 
             // Scan the matrix and determine the sizes
             determine_ij_system_sizes(matfile, nfiles);
@@ -636,9 +777,8 @@ namespace nalu {
             build_ij_matrix(matfile, nfiles);
             build_ij_vector(rhsfile, nfiles, rhs_);
 
-            if (linsys["sln_file"]) {
-                std::string slnfile = linsys["sln_file"].as<std::string>();
-                checkSolution_ = true;
+			if (checkSolution_)
+			{
                 build_ij_vector(slnfile, nfiles, slnRef_);
             }
         }
@@ -649,6 +789,7 @@ namespace nalu {
      *******************/
     void HypreSystem::load_hypre_native()
     {
+#if 0
         auto start = std::chrono::system_clock::now();
         if (iproc_ == 0)
             std::cout << "Loading HYPRE IJ files" << std::endl;
@@ -693,6 +834,7 @@ namespace nalu {
                   << numRows_ << std::endl;
         MPI_Barrier(comm_);
         fflush(stdout);
+#endif
     }
 
     /*******************
@@ -808,62 +950,67 @@ namespace nalu {
     /*******************
      *
      *******************/
-    void HypreSystem::build_ij_vector(std::string vecfile, int nfiles, HYPRE_IJVector& vec)
+    void HypreSystem::build_ij_vector(std::vector<std::string>& vecfiles, int nfiles, std::vector<HYPRE_IJVector>& vec)
     {
-        MPI_Barrier(comm_);
-        auto start = std::chrono::system_clock::now();
-        if (iproc_ == 0)
-            std::cout << "Reading " << nfiles << " HYPRE IJ Vector files... " << std::endl;
+		MPI_Barrier(comm_);
+		auto start = std::chrono::system_clock::now();
 
-        HYPRE_Int ilower, iupper;
-        HYPRE_Int irow;
-        double value;
+		for (int i=0; i<numComps_; ++i)
+		{
+			std::string vecfile = vecfiles[i];
 
-        /* resize these */
-        vector_indices_.resize(0);
-        vector_values_.resize(0);
+			if (iproc_ == 0)
+				std::cout << "Reading " << nfiles << " HYPRE IJ Vector files from " << vecfile << std::endl;
 
-        for (int ii=0; ii < nfiles; ii++) {
-            FILE* fh;
-            std::ostringstream suffix;
-            suffix << vecfile << "." << std::setw(5) << std::setfill('0') << ii;
+			HYPRE_Int ilower, iupper;
+			HYPRE_Int irow;
+			double value;
 
-            if ((fh = fopen(suffix.str().c_str(), "r")) == NULL) {
-                throw std::runtime_error("Cannot open vector file: " + suffix.str());
-            }
+			/* resize these */
+			vector_indices_.resize(0);
+			vector_values_.resize(0);
+
+			for (int ii=0; ii < nfiles; ii++) {
+				FILE* fh;
+				std::ostringstream suffix;
+				suffix << vecfile << "." << std::setw(5) << std::setfill('0') << ii;
+
+				if ((fh = fopen(suffix.str().c_str(), "r")) == NULL) {
+					throw std::runtime_error("Cannot open vector file: " + suffix.str());
+				}
 
 #ifdef HYPRE_BIGINT
-            fscanf(fh, "%lld %lld\n", &ilower, &iupper);
+				fscanf(fh, "%lld %lld\n", &ilower, &iupper);
 #else
-            fscanf(fh, "%d %d\n", &ilower, &iupper);
+				fscanf(fh, "%d %d\n", &ilower, &iupper);
 #endif
 
-            // need the + 1 so that the upper boundary are inclusive
-            int overlap = std::max(0, std::min(iUpper_+1, iupper+1) - std::max(iLower_, ilower));
-            if (overlap) {
+				// need the + 1 so that the upper boundary are inclusive
+				int overlap = std::max(0, std::min(iUpper_+1, iupper+1) - std::max(iLower_, ilower));
+				if (overlap) {
 #ifdef HYPRE_BIGINT
-                while (fscanf(fh, "%lld%*[ \t]%le\n", &irow, &value) != EOF) {
+					while (fscanf(fh, "%lld%*[ \t]%le\n", &irow, &value) != EOF) {
 #else
-                while (fscanf(fh, "%d%*[ \t]%le\n", &irow, &value) != EOF) {
+					while (fscanf(fh, "%d%*[ \t]%le\n", &irow, &value) != EOF) {
 #endif
-                    if (irow>=iLower_ && irow<=iUpper_) {
-                        vector_indices_.push_back(irow);
-                        vector_values_.push_back(value);
-                    }
-                }
-            }
-            fclose(fh);
-        }
+						if (irow>=iLower_ && irow<=iUpper_) {
+							vector_indices_.push_back(irow);
+							vector_values_.push_back(value);
+						}
+					}
+				}
+				fclose(fh);
+			}
 
-        /* Build the vector */
-        hypre_vector_set_values(vec);
-
-        MPI_Barrier(comm_);
-        auto stop = std::chrono::system_clock::now();
-        std::chrono::duration<double> elapsed = stop - start;
-        timers_.emplace_back("IJ : read and build vector", elapsed.count());
-        MPI_Barrier(comm_);
-        fflush(stdout);
+			/* Build the vector */
+			hypre_vector_set_values(vec, i);
+		}
+		MPI_Barrier(comm_);
+		auto stop = std::chrono::system_clock::now();
+		std::chrono::duration<double> elapsed = stop - start;
+		timers_.emplace_back("IJ : read and build vector", elapsed.count());
+		MPI_Barrier(comm_);
+		fflush(stdout);
     }
 
     /********************************************************************************/
@@ -873,9 +1020,39 @@ namespace nalu {
     void HypreSystem::load_matrix_market()
     {
         YAML::Node linsys = inpfile_["linear_system"];
+		numComps_ = get_optional(linsys, "num_components", 1);
+		segregatedSolve_ = (bool) get_optional(linsys, "segregated_solve", 1);
+		numSolves_ = segregatedSolve_ ? numComps_ : 1;
+		numVectors_ = segregatedSolve_ ? 1 : numComps_;
+		rtol_ = (double) get_optional(linsys, "rtol", 1.0e-6);
+		atol_ = (double) get_optional(linsys, "atol", 1.0e-8);
 
         std::string matfile = linsys["matrix_file"].as<std::string>();
-        std::string rhsfile = linsys["rhs_file"].as<std::string>();
+
+		std::vector<std::string> rhsfile(numComps_);
+		std::vector<std::string> slnfile(numComps_);
+		if (numComps_==0)
+		{
+			rhsfile[0] = linsys["rhs_file"].as<std::string>();
+			if (linsys["sln_file"]) {
+				slnfile[0] = linsys["sln_file"].as<std::string>();
+				checkSolution_ = true;
+			}
+		}
+		else
+		{
+			int count=0;
+			for (int i=0; i<numComps_; ++i)
+			{
+				rhsfile[i] = linsys["rhs_file"+std::to_string(i)].as<std::string>();
+				std::string sfile = "sln_file"+std::to_string(i);
+				if (linsys[sfile]) {
+					slnfile[i] = linsys[sfile].as<std::string>();
+					count++;
+				}
+			}
+			if (count==numComps_) checkSolution_ = true;
+		}
 
         // Scan the matrix and determine the sizes
         determine_mm_system_sizes(matfile);
@@ -890,9 +1067,7 @@ namespace nalu {
         build_mm_matrix(matfile);
         build_mm_vector(rhsfile, rhs_);
 
-        if (linsys["sln_file"]) {
-            std::string slnfile = linsys["sln_file"].as<std::string>();
-            checkSolution_ = true;
+        if (checkSolution_) {
             build_mm_vector(slnfile, slnRef_);
         }
     }
@@ -1007,58 +1182,62 @@ namespace nalu {
     /*******************
      *
      *******************/
-    void HypreSystem::build_mm_vector(std::string mmfile, HYPRE_IJVector& vec)
+    void HypreSystem::build_mm_vector(std::vector<std::string>& mmfiles, std::vector<HYPRE_IJVector>& vec)
     {
-        MPI_Barrier(comm_);
-        if (iproc_==0)
-            std::cout << "Reading from " << mmfile << " into HYPRE_IJVector" << std::endl;
+		MPI_Barrier(comm_);
+		auto start = std::chrono::system_clock::now();
 
-        auto start = std::chrono::system_clock::now();
 
-        FILE* fh;
-        MM_typecode matcode;
-        int err;
-        int msize, nsize;
-        double value;
+		for (int j=0; j<numComps_; ++j)
+		{
+			std::string mmfile = mmfiles[j];
+			if (iproc_==0)
+				std::cout << "Reading from " << mmfile << " into HYPRE_IJVector" << std::endl;
 
-        if ((fh = fopen(mmfile.c_str(), "r")) == NULL) {
-            throw std::runtime_error("Cannot open matrix file: " + mmfile);
-        }
+			FILE* fh;
+			MM_typecode matcode;
+			int err;
+			int msize, nsize;
+			double value;
 
-        err = mm_read_banner(fh, &matcode);
-        if (err != 0)
-            throw std::runtime_error("Cannot read matrix banner");
+			if ((fh = fopen(mmfile.c_str(), "r")) == NULL) {
+				throw std::runtime_error("Cannot open vector file: " + mmfile);
+			}
 
-        if (!mm_is_valid(matcode) || !mm_is_array(matcode))
-            throw std::runtime_error("Invalid matrix market file encountered");
+			err = mm_read_banner(fh, &matcode);
+			if (err != 0)
+				throw std::runtime_error("Cannot read array banner");
 
-        err = mm_read_mtx_array_size(fh, &msize, &nsize);
-        if (err != 0)
-            throw std::runtime_error("Cannot read matrix sizes in file: " + mmfile);
+			if (!mm_is_valid(matcode) || !mm_is_array(matcode))
+				throw std::runtime_error("Invalid matrix market file encountered");
 
-        if ((msize != M_))
-            throw std::runtime_error("Inconsistent sizes for Matrix and Vector");
+			err = mm_read_mtx_array_size(fh, &msize, &nsize);
+			if (err != 0)
+				throw std::runtime_error("Cannot read array sizes in file: " + mmfile);
 
-        vector_indices_.resize(0);
-        vector_values_.resize(0);
-        for (int i=0; i < msize; i++) {
-            /* only read in the part owned by this rank */
-            if (i>=iLower_ && i<=iUpper_) {
-                fscanf(fh, "%lf\n", &value);
-                vector_values_.push_back(value);
-                vector_indices_.push_back(i);
-            }
-        }
+			if ((msize != M_))
+				throw std::runtime_error("Inconsistent sizes for Matrix and Vector");
 
-        /* build the vector */
-        hypre_vector_set_values(vec);
+			vector_indices_.resize(0);
+			vector_values_.resize(0);
+			for (int i=0; i < msize; i++) {
+				fscanf(fh, "%lf\n", &value);
+				/* only read in the part owned by this rank */
+				if (i>=iLower_ && i<=iUpper_) {
+					vector_values_.push_back(value);
+					vector_indices_.push_back(i);
+				}
+			}
 
-        MPI_Barrier(comm_);
-        auto stop = std::chrono::system_clock::now();
-        std::chrono::duration<double> elapsed = stop - start;
-        timers_.emplace_back("Matrix market : read and build vector", elapsed.count());
-        MPI_Barrier(comm_);
-        fflush(stdout);
-        fclose(fh);
+			/* build the vector */
+			hypre_vector_set_values(vec, j);
+			fclose(fh);
+		}
+		MPI_Barrier(comm_);
+		auto stop = std::chrono::system_clock::now();
+		std::chrono::duration<double> elapsed = stop - start;
+		timers_.emplace_back("Matrix market : read and build vector", elapsed.count());
+		MPI_Barrier(comm_);
+		fflush(stdout);
     }
 } // namespace nalu
