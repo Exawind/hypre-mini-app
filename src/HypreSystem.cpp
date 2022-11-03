@@ -628,15 +628,24 @@ namespace nalu {
         int nnz_this_rank = rows_.size();
 
 #if defined(HYPRE_USING_GPU)
-        HYPRE_Int * d_cols, * d_rows;
-        HYPRE_Complex * d_vals;
+#if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
+        HYPRE_BigInt * d_rows, * d_cols;
+        d_rows = hypre_TAlloc(HYPRE_BigInt, nnz_this_rank, HYPRE_MEMORY_DEVICE);
+        hypre_TMemcpy(d_rows, rows_.data(), HYPRE_BigInt, nnz_this_rank, HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
 
+        d_cols = hypre_TAlloc(HYPRE_BigInt, nnz_this_rank, HYPRE_MEMORY_DEVICE);
+        hypre_TMemcpy(d_cols, cols_.data(), HYPRE_BigInt, nnz_this_rank, HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
+#else
+        HYPRE_Int * d_rows, * d_cols;
         d_rows = hypre_TAlloc(HYPRE_Int, nnz_this_rank, HYPRE_MEMORY_DEVICE);
-        d_cols = hypre_TAlloc(HYPRE_Int, nnz_this_rank, HYPRE_MEMORY_DEVICE);
-        d_vals = hypre_TAlloc(HYPRE_Complex, nnz_this_rank, HYPRE_MEMORY_DEVICE);
-
         hypre_TMemcpy(d_rows, rows_.data(), HYPRE_Int, nnz_this_rank, HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
+
+        d_cols = hypre_TAlloc(HYPRE_Int, nnz_this_rank, HYPRE_MEMORY_DEVICE);
         hypre_TMemcpy(d_cols, cols_.data(), HYPRE_Int, nnz_this_rank, HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
+#endif
+
+        HYPRE_Complex * d_vals;
+        d_vals = hypre_TAlloc(HYPRE_Complex, nnz_this_rank, HYPRE_MEMORY_DEVICE);
         hypre_TMemcpy(d_vals, vals_.data(), HYPRE_Complex, nnz_this_rank, HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
 
         /* Use the fast path */
@@ -682,14 +691,18 @@ namespace nalu {
 		}
 
 #if defined(HYPRE_USING_GPU)
-        HYPRE_Int * d_indices;
         HYPRE_Complex * d_vals;
         size_t N = vector_values_.size();
-
+#if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
+        HYPRE_BigInt * d_indices;
+        d_indices = hypre_TAlloc(HYPRE_BigInt, N, HYPRE_MEMORY_DEVICE);
+        hypre_TMemcpy(d_indices, vector_indices_.data(), HYPRE_BigInt, N, HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
+#else
+        HYPRE_Int * d_indices;
         d_indices = hypre_TAlloc(HYPRE_Int, N, HYPRE_MEMORY_DEVICE);
-        d_vals = hypre_TAlloc(HYPRE_Complex, N, HYPRE_MEMORY_DEVICE);
-
         hypre_TMemcpy(d_indices, vector_indices_.data(), HYPRE_Int, N, HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
+#endif
+        d_vals = hypre_TAlloc(HYPRE_Complex, N, HYPRE_MEMORY_DEVICE);
         hypre_TMemcpy(d_vals, vector_values_.data(), HYPRE_Complex, N, HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
 
         /* Use the fast path. This probably doesn't work with multivectors yet */
@@ -859,7 +872,7 @@ namespace nalu {
                 throw std::runtime_error("Cannot open matrix file: " + suffix.str());
             }
 
-#ifdef HYPRE_BIGINT
+#if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
             fscanf(fh, "%lld %lld %lld %lld\n", &ilower, &iupper, &jlower, &jupper);
 #else
             fscanf(fh, "%d %d %d %d\n", &ilower, &iupper, &jlower, &jupper);
@@ -894,7 +907,11 @@ namespace nalu {
             std::cout << "Reading " << nfiles << " HYPRE IJ Matrix files... " << std::endl;
 
         HYPRE_Int ilower, iupper, jlower, jupper;
+#if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
+        HYPRE_BigInt irow, icol;
+#else
         HYPRE_Int irow, icol;
+#endif
         double value;
 
         /* store the loaded matrix into these vectors */
@@ -912,7 +929,7 @@ namespace nalu {
                 throw std::runtime_error("Cannot open matrix file: " + suffix.str());
             }
 
-#ifdef HYPRE_BIGINT
+#if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
             fscanf(fh, "%lld %lld %lld %lld\n", &ilower, &iupper, &jlower, &jupper);
 #else
             fscanf(fh, "%d %d %d %d\n", &ilower, &iupper, &jlower, &jupper);
@@ -921,7 +938,7 @@ namespace nalu {
             // need the + 1 so that the upper boundary are inclusive
             int overlap = std::max(0, std::min(iUpper_+1, iupper+1) - std::max(iLower_, ilower));
             if (overlap) {
-#ifdef HYPRE_BIGINT
+#if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
                 while (fscanf(fh, "%lld %lld%*[ \t]%le\n", &irow, &icol, &value) != EOF) {
 #else
                 while (fscanf(fh, "%d %d%*[ \t]%le\n", &irow, &icol, &value) != EOF) {
@@ -963,7 +980,11 @@ namespace nalu {
 				std::cout << "Reading " << nfiles << " HYPRE IJ Vector files from " << vecfile << std::endl;
 
 			HYPRE_Int ilower, iupper;
+#if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
+			HYPRE_BigInt irow;
+#else
 			HYPRE_Int irow;
+#endif
 			double value;
 
 			/* resize these */
@@ -978,8 +999,7 @@ namespace nalu {
 				if ((fh = fopen(suffix.str().c_str(), "r")) == NULL) {
 					throw std::runtime_error("Cannot open vector file: " + suffix.str());
 				}
-
-#ifdef HYPRE_BIGINT
+#if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
 				fscanf(fh, "%lld %lld\n", &ilower, &iupper);
 #else
 				fscanf(fh, "%d %d\n", &ilower, &iupper);
@@ -988,7 +1008,7 @@ namespace nalu {
 				// need the + 1 so that the upper boundary are inclusive
 				int overlap = std::max(0, std::min(iUpper_+1, iupper+1) - std::max(iLower_, ilower));
 				if (overlap) {
-#ifdef HYPRE_BIGINT
+#if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
 					while (fscanf(fh, "%lld%*[ \t]%le\n", &irow, &value) != EOF) {
 #else
 					while (fscanf(fh, "%d%*[ \t]%le\n", &irow, &value) != EOF) {
@@ -1128,7 +1148,11 @@ namespace nalu {
         MM_typecode matcode;
         int err;
         int msize, nsize, nnz;
+#if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
+        HYPRE_BigInt irow, icol;
+#else
         HYPRE_Int irow, icol;
+#endif
         double value;
 
         if ((fh = fopen(matfile.c_str(), "rt")) == NULL) {
@@ -1151,7 +1175,7 @@ namespace nalu {
         vals_.resize(0);
         for (int i=0; i < nnz; i++)
         {
-#ifdef HYPRE_BIGINT
+#if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
             fscanf(fh, "%lld %lld %lf\n", &irow, &icol, &value);
 #else
             fscanf(fh, "%d %d %lf\n", &irow, &icol, &value);
@@ -1225,7 +1249,11 @@ namespace nalu {
 				/* only read in the part owned by this rank */
 				if (i>=iLower_ && i<=iUpper_) {
 					vector_values_.push_back(value);
+#if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
+					vector_indices_.push_back((HYPRE_BigInt)i);
+#else
 					vector_indices_.push_back(i);
+#endif
 				}
 			}
 
