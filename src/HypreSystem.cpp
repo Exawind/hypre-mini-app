@@ -219,9 +219,57 @@ namespace nalu {
             HYPRE_BoomerAMGSetTruncFactor(precond_, float_value);
         }
 
+        /* Smoothing parameters : used for complex algorithms such as ILU and Chebyshev */
         if (node["smooth_type"]) {
             int smooth_type = node["smooth_type"].as<int>();
             HYPRE_BoomerAMGSetSmoothType(precond_, smooth_type);
+        }
+        if (node["smooth_num_sweeps"]) {
+            int smooth_num_sweeps = node["smooth_num_sweeps"].as<int>();
+            HYPRE_BoomerAMGSetSmoothNumSweeps(precond_, smooth_num_sweeps);
+        }
+        if (node["smooth_num_levels"]) {
+            int smooth_num_levels = node["smooth_num_levels"].as<int>();
+            HYPRE_BoomerAMGSetSmoothNumLevels(precond_, smooth_num_levels);
+        }
+
+		  /* ILU parameters */
+        if (node["ilu_type"]) {
+            int ilu_type = node["ilu_type"].as<int>();
+            HYPRE_BoomerAMGSetILUType(precond_, ilu_type);
+        }
+        if (node["ilu_level"]) {
+            int ilu_level = node["ilu_level"].as<int>();
+            HYPRE_BoomerAMGSetILULevel(precond_, ilu_level);
+        }
+        if (node["ilu_reordering_type"]) {
+            int ilu_reordering_type = node["ilu_reordering_type"].as<int>();
+            HYPRE_BoomerAMGSetILULocalReordering(precond_, ilu_reordering_type);
+        }
+        if (node["ilu_max_row_nnz"]) {
+            int ilu_max_row_nnz = node["ilu_max_row_nnz"].as<int>();
+            HYPRE_BoomerAMGSetILUMaxRowNnz(precond_, ilu_max_row_nnz);
+        }
+        if (node["ilu_max_iter"]) {
+            int ilu_max_iter = node["ilu_max_iter"].as<int>();
+            HYPRE_BoomerAMGSetILUMaxIter(precond_, ilu_max_iter);
+        }
+        if (node["ilu_drop_tol"]) {
+            double ilu_drop_tol = node["ilu_drop_tol"].as<double>();
+            HYPRE_BoomerAMGSetILUDroptol(precond_, ilu_drop_tol);
+        }
+        if (node["ilu_tri_solve"]) {
+            int ilu_tri_solve = node["ilu_tri_solve"].as<int>();
+            HYPRE_BoomerAMGSetILUTriSolve(precond_, ilu_tri_solve);
+				printf("%s %s %d\n",__FILE__,__FUNCTION__,__LINE__);
+        }
+        if (node["ilu_lower_jacobi_iters"]) {
+            int ilu_lower_jacobi_iters = node["ilu_lower_jacobi_iters"].as<int>();
+            HYPRE_BoomerAMGSetILULowerJacobiIters(precond_, ilu_lower_jacobi_iters);
+        }
+        if (node["ilu_upper_jacobi_iters"]) {
+            int ilu_upper_jacobi_iters = node["ilu_upper_jacobi_iters"].as<int>();
+            HYPRE_BoomerAMGSetILUUpperJacobiIters(precond_, ilu_upper_jacobi_iters);
         }
 
         precondSetupPtr_ = &HYPRE_BoomerAMGSetup;
