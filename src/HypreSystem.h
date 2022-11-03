@@ -125,10 +125,21 @@ private:
     std::vector<int> rowFilled_;
 
     //! COO data structures read in only once
+#if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
+    std::vector<HYPRE_BigInt> rows_;
+    std::vector<HYPRE_BigInt> cols_;
+#else
     std::vector<HYPRE_Int> rows_;
     std::vector<HYPRE_Int> cols_;
-    std::vector<double> vals_;
+#endif
+
+	std::vector<double> vals_;
+
+#if defined(HYPRE_MIXEDINT)
+    std::vector<HYPRE_BigInt> vector_indices_;
+#else
     std::vector<HYPRE_Int> vector_indices_;
+#endif
     std::vector<double> vector_values_;
 
     //! Timers
