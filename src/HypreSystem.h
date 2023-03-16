@@ -90,7 +90,7 @@ private:
   void hypre_matrix_set_values();
 
   //! Build the HYPRE_IJVector from data loaded from either IJ or matrix market
-  void hypre_vector_set_values(std::vector<HYPRE_IJVector> &vec);
+	void hypre_vector_set_values(std::vector<HYPRE_IJVector> &vec, int component);
 
   //! Load the matrix into HYPRE_IJVector
   void build_mm_vector(std::vector<std::string> &,
