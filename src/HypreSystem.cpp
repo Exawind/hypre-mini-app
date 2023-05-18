@@ -484,6 +484,8 @@ void HypreSystem::solve() {
   solverSetupPtr_(solver_, parMat_, parRhs_[0], parSln_[0]);
   solverSolvePtr_(solver_, parMat_, parRhs_[0], parSln_[0]);
 
+  HYPRE_ParVectorSetConstantValues(parSln_[0], 0.0);
+  
   hypre_CSRMatrixGpuSpMVAnalysis(hypre_ParCSRMatrixDiag(parMat_));
 
   for (int i = 0; i < numSolves_; ++i) {
