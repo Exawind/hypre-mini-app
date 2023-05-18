@@ -478,6 +478,14 @@ void HypreSystem::solve() {
   std::chrono::duration<double> write_operators(0);
   std::chrono::duration<double> solve(0);
 
+  if (usePrecond_) {
+	  solverPrecondPtr_(solver_, precondSolvePtr_, precondSetupPtr_, precond_);
+  }
+  solverSetupPtr_(solver_, parMat_, parRhs_[0], parSln_[0]);
+  solverSolvePtr_(solver_, parMat_, parRhs_[0], parSln_[0]);
+
+  hypre_CSRMatrixGpuSpMVAnalysis(hypre_ParCSRMatrixDiag(parMat_));
+
   for (int i = 0; i < numSolves_; ++i) {
     if (iproc_ == 0)
       printf("Setting up preconditioner\n");
@@ -691,8 +699,9 @@ void HypreSystem::hypre_matrix_set_values() {
                 HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
 
   /* Use the fast path */
-  printf("rank=%d : %s %s %d : nnz_this_rank=%d\n", iproc_, __FILE__,
-         __FUNCTION__, __LINE__, nnz_this_rank);
+  if (iproc_ == 0)
+	  printf("rank=%d : %s %s %d : nnz_this_rank=%d\n", iproc_, __FILE__,
+				__FUNCTION__, __LINE__, nnz_this_rank);
   YAML::Node node = inpfile_["solver_settings"];
   if (get_optional(node, "fast_matrix_assemble", 0)) {
 #if 0
@@ -751,8 +760,9 @@ void HypreSystem::hypre_vector_set_values(std::vector<HYPRE_IJVector> &vec,
                 HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
 
   /* Use the fast path. This probably doesn't work with multivectors yet */
-  printf("rank=%d : %s %s %d : N=%d\n", iproc_, __FILE__, __FUNCTION__,
-         __LINE__, N);
+  if (iproc_ == 0)
+	  printf("rank=%d : %s %s %d : N=%d\n", iproc_, __FILE__, __FUNCTION__,
+				__LINE__, N);
   YAML::Node node = inpfile_["solver_settings"];
   if (get_optional(node, "fast_vector_assemble", 0)) {
 #if 0
