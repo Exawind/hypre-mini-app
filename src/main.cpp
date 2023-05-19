@@ -111,11 +111,6 @@ int main(int argc, char *argv[]) {
   if (!iproc)
     std::cout << "umpire_device_pool_mbs=" << device_pool_size << std::endl;
   HYPRE_SetUmpireDevicePoolSize(device_pool_size * 1024 * 1024);
-  long long pinned_pool_size =
-      nalu::get_optional(node, "umpire_pinned_pool_mbs", 512);
-  if (!iproc)
-    std::cout << "umpire_pinned_pool_mbs=" << pinned_pool_size << std::endl;
-  HYPRE_SetUmpirePinnedPoolSize(pinned_pool_size * 1024 * 1024);
 #endif
 
 #ifdef HYPRE_USING_GPU
