@@ -154,44 +154,51 @@ int main(int argc, char *argv[]) {
   }
 #endif
 
-  nalu::HypreSystem linsys(MPI_COMM_WORLD, inpfile);
+  HYPRE_Int num_tests = nalu::get_optional(node, "num_tests", 1);
+  for (int i=0; i<num_tests; ++i)
+  {
+	  // reset the random number generator
+	  hypre_ResetDeviceRandGenerator(1234ULL, 0ULL);
 
-  linsys.load();
+	  nalu::HypreSystem linsys(MPI_COMM_WORLD, inpfile);
+
+	  linsys.load();
 
 #ifdef HYPRE_USING_CUDA
-  cudaMemGetInfo(&free, &total);
-  if (iproc == 0)
-	  printf("\trank=%d : %s %s %d : %s (cc=%d.%d): device=%d of %d : free "
-				"memory=%1.8g GB, total memory=%1.8g GB\n",
-				iproc, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.major,
-				prop.minor, device, count, free / 1.e9, total / 1.e9);
+	  cudaMemGetInfo(&free, &total);
+	  if (iproc == 0)
+		  printf("\trank=%d : %s %s %d : %s (cc=%d.%d): device=%d of %d : free "
+					"memory=%1.8g GB, total memory=%1.8g GB\n",
+					iproc, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.major,
+					prop.minor, device, count, free / 1.e9, total / 1.e9);
 #endif
 
 #ifdef HYPRE_USING_HIP
-  hipMemGetInfo(&free, &total);
-  if (iproc == 0)
-	  printf("rank=%d : %s %s %d : %s arch=%d : device=%d of %d : free "
-				"memory=%1.8g GB, total memory=%1.8g GB\n",
-				iproc, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.gcnArch,
-				device, count, free / 1.e9, total / 1.e9);
+	  hipMemGetInfo(&free, &total);
+	  if (iproc == 0)
+		  printf("rank=%d : %s %s %d : %s arch=%d : device=%d of %d : free "
+					"memory=%1.8g GB, total memory=%1.8g GB\n",
+					iproc, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.gcnArch,
+					device, count, free / 1.e9, total / 1.e9);
 #endif
-  fflush(stdout);
-  MPI_Barrier(MPI_COMM_WORLD);
+	  fflush(stdout);
+	  MPI_Barrier(MPI_COMM_WORLD);
 
-  linsys.solve();
+	  linsys.solve();
 
-  linsys.check_solution();
-  linsys.output_linear_system();
-  linsys.summarize_timers();
+	  linsys.check_solution();
+	  linsys.output_linear_system();
+	  linsys.summarize_timers();
 
-  MPI_Barrier(MPI_COMM_WORLD);
-  auto stop = std::chrono::system_clock::now();
-  std::chrono::duration<double> elapsed = stop - start;
-  if (iproc == 0)
-    std::cout << "Total time: " << elapsed.count() << " seconds" << std::endl;
+	  MPI_Barrier(MPI_COMM_WORLD);
+	  auto stop = std::chrono::system_clock::now();
+	  std::chrono::duration<double> elapsed = stop - start;
+	  if (iproc == 0)
+		  std::cout << "Total time: " << elapsed.count() << " seconds" << std::endl;
 
-  linsys.destroy_system();
-
+	  linsys.destroy_system();
+  }
+  
   HYPRE_Finalize();
 
   MPI_Finalize();
