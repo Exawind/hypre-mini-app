@@ -478,15 +478,7 @@ void HypreSystem::solve() {
   std::chrono::duration<double> write_operators(0);
   std::chrono::duration<double> solve(0);
 
-  if (usePrecond_) {
-	  solverPrecondPtr_(solver_, precondSolvePtr_, precondSetupPtr_, precond_);
-  }
-  solverSetupPtr_(solver_, parMat_, parRhs_[0], parSln_[0]);
-  solverSolvePtr_(solver_, parMat_, parRhs_[0], parSln_[0]);
-
-  HYPRE_ParVectorSetConstantValues(parSln_[0], 0.0);
-  
-  hypre_CSRMatrixGpuSpMVAnalysis(hypre_ParCSRMatrixDiag(parMat_));
+  //hypre_CSRMatrixGpuSpMVAnalysis(hypre_ParCSRMatrixDiag(parMat_));
 
   for (int i = 0; i < numSolves_; ++i) {
     if (iproc_ == 0)
