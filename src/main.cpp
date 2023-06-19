@@ -154,6 +154,12 @@ int main(int argc, char *argv[]) {
   }
 #endif
 
+  /* Timers dumped to a csv file for mutliple tests */
+  std::string csv_profile_file = nalu::get_optional<std::string>(node, "csv_profile_file", "");
+  bool found_csv_profile_file = csv_profile_file.size()>0;
+  std::vector<std::string> names(0);
+  std::vector<std::vector<double>> data(0);
+
   HYPRE_Int num_tests = nalu::get_optional(node, "num_tests", 1);
   for (int i=0; i<num_tests; ++i)
   {
@@ -190,6 +196,9 @@ int main(int argc, char *argv[]) {
 	  linsys.output_linear_system();
 	  linsys.summarize_timers();
 
+	  if (found_csv_profile_file)
+		  linsys.retrieve_timers(names,data);
+
 	  MPI_Barrier(MPI_COMM_WORLD);
 	  auto stop = std::chrono::system_clock::now();
 	  std::chrono::duration<double> elapsed = stop - start;
@@ -198,7 +207,30 @@ int main(int argc, char *argv[]) {
 
 	  linsys.destroy_system();
   }
-  
+
+  if (found_csv_profile_file)
+  {
+	  FILE * fid = fopen(csv_profile_file.c_str(), "wt");
+	  size_t N = names.size();
+	  size_t M = data[0].size();
+	  for (int i = 0; i < N; ++i)
+	  {
+		  if (i<N-1)
+			  fprintf(fid, "%s,", names[i].c_str());
+		  else
+			  fprintf(fid, "%s\n", names[i].c_str());
+	  }
+	  for (int j = 0; j < M; ++j)
+		  for (int i = 0; i < N; ++i)
+		  {
+			  if (i<N-1)
+				  fprintf(fid, "%1.15g,", data[i][j]);
+			  else
+			  fprintf(fid, "%1.15g\n", data[i][j]);
+		  }
+	  fclose(fid);
+  }
+
   HYPRE_Finalize();
 
   MPI_Finalize();

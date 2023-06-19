@@ -644,6 +644,39 @@ void HypreSystem::check_solution() {
   timers_.emplace_back("Check solution", elapsed.count());
 }
 
+void HypreSystem::retrieve_timers(std::vector<std::string>& names,
+											 std::vector<std::vector<double>> & data) {
+  if (iproc_ != 0)
+    return;
+
+  if (names.size()==0)
+  {
+	  for (auto &timer : timers_)
+		  names.push_back(std::string(timer.first));
+	  data.resize(names.size());
+	  int k=0;
+	  for (auto &timer : timers_)
+	  {
+		  data[k].push_back(double(timer.second));
+		  k++;
+	  }
+  }
+  else
+  {
+	  for (auto &timer : timers_)
+	  {
+		  auto it = std::find(names.begin(), names.end(), timer.first);
+
+		  // If element was found
+		  if (it != names.end())
+		  {
+			  int k = it - names.begin();
+			  data[k].push_back(double(timer.second));
+		  }
+	  }
+  }
+}
+
 void HypreSystem::summarize_timers() {
   if (iproc_ != 0)
     return;
