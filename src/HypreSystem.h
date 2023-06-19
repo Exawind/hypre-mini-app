@@ -49,6 +49,10 @@ public:
   //! Summarize timers
   void summarize_timers();
 
+  //! retrieve timers to dump to csv file
+  void retrieve_timers(std::vector<std::string>& names,
+							  std::vector<std::vector<double>>& data);
+
   //! Destroy hypre linear system
   void destroy_system();
 
