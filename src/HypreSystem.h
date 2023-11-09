@@ -20,6 +20,20 @@ extern "C" {
 #include <iomanip>
 #include <iostream>
 
+#include <thrust/sequence.h>
+#include <thrust/execution_policy.h>
+
+#define HIP_CALL(call)                                                         \
+  do {                                                                         \
+    hipError_t err = call;                                                     \
+    if (hipSuccess != err) {                                                   \
+      printf("HIP ERROR (code = %d, %s) at %s:%d\n", err,                      \
+             hipGetErrorString(err), __FILE__, __LINE__);                      \
+      assert(0);                                                               \
+      exit(1);                                                                 \
+    }                                                                          \
+  } while (0)
+
 namespace nalu {
 
 namespace {
@@ -60,6 +74,11 @@ private:
   HypreSystem() = delete;
 
   HypreSystem(const HypreSystem &) = delete;
+
+  //! build 27 pt stencil
+  void build_27pt_stencil();
+  void validateDiagData(int nnz, int *drows, int *dcols);
+  void validateOffdData(int nnz, int *drows, int *dcols);
 
   //! Load files in matrix market format
   void load_matrix_market();
@@ -116,6 +135,7 @@ private:
   void setup_cogmres();
   void setup_fgmres();
   void setup_bicg();
+  void setup_cg();
 
   //! MPI Communicator object
   MPI_Comm comm_;
@@ -129,26 +149,55 @@ private:
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
   std::vector<HYPRE_BigInt> rows_;
   std::vector<HYPRE_BigInt> cols_;
-  HYPRE_BigInt *d_rows_;
-  HYPRE_BigInt *d_cols_;
+  HYPRE_BigInt *d_rows_=NULL;
+  HYPRE_BigInt *d_cols_=NULL;
+  HYPRE_BigInt *d_offd_rows_=NULL;
+  HYPRE_BigInt *d_offd_cols_=NULL;
 
   std::vector<HYPRE_BigInt> vector_indices_;
-  HYPRE_BigInt *d_vector_indices_;
+  HYPRE_BigInt *d_vector_indices_=NULL;
+
+  //! Global number of rows in the linear system
+  HYPRE_BigInt totalRows_{0};
+
+  //! Number of rows in this processor
+  HYPRE_BigInt numRows_{0};
+
+  //! Global ID of the first row on this processor
+  HYPRE_BigInt iLower_{0};
+
+  //! Global ID of the last row on this processor
+  HYPRE_BigInt iUpper_{0};
 #else
   std::vector<HYPRE_Int> rows_;
   std::vector<HYPRE_Int> cols_;
-  HYPRE_Int *d_rows_;
-  HYPRE_Int *d_cols_;
+  HYPRE_Int *d_rows_=NULL;
+  HYPRE_Int *d_cols_=NULL;
+  HYPRE_Int *d_offd_rows_=NULL;
+  HYPRE_Int *d_offd_cols_=NULL;
 
   std::vector<HYPRE_Int> vector_indices_;
-  HYPRE_Int *d_vector_indices_;
+  HYPRE_Int *d_vector_indices_=NULL;
+
+  //! Global number of rows in the linear system
+  HYPRE_Int totalRows_{0};
+
+  //! Number of rows in this processor
+  HYPRE_Int numRows_{0};
+
+  //! Global ID of the first row on this processor
+  HYPRE_Int iLower_{0};
+
+  //! Global ID of the last row on this processor
+  HYPRE_Int iUpper_{0};
+
 #endif
 
   std::vector<double> vals_;
-  HYPRE_Complex *d_vals_;
+  HYPRE_Complex *d_vals_=NULL;
 
   std::vector<double> vector_values_;
-  HYPRE_Complex *d_vector_vals_;
+  HYPRE_Complex *d_vector_vals_=NULL;
 
   //! Timers
   std::vector<std::pair<std::string, double>> timers_;
@@ -186,18 +235,6 @@ private:
   HYPRE_Int numSolves_{1};
   HYPRE_Int numVectors_{1};
 
-  //! Global number of rows in the linear system
-  HYPRE_Int totalRows_{0};
-
-  //! Number of rows in this processor
-  HYPRE_Int numRows_{0};
-
-  //! Global ID of the first row on this processor
-  HYPRE_Int iLower_{0};
-
-  //! Global ID of the last row on this processor
-  HYPRE_Int iUpper_{0};
-
   HYPRE_Int (*solverDestroyPtr_)(HYPRE_Solver);
   HYPRE_Int (*solverSetupPtr_)(HYPRE_Solver, HYPRE_ParCSRMatrix,
                                HYPRE_ParVector, HYPRE_ParVector);
@@ -214,6 +251,9 @@ private:
 
   int M_{0};
   int N_{0};
+  int nx_{0};
+  int ny_{0};
+  int nz_{0};
   int nnz_{0};
   int iproc_{0};
   int nproc_{0};
