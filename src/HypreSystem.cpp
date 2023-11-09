@@ -1417,6 +1417,8 @@ void HypreSystem::build_27pt_stencil() {
   HYPRE_IJVectorSetValues(v, numRows_, d_vector_indices_, data.rhs_val);
   HIP_CALL(hipGetLastError());
 
+  free(data);
+
   if (iproc_ == 0)
     std::cout << "Done building 27 Pt Stencil for HYPRE_IJMatrix" << std::endl;
 

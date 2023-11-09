@@ -1088,3 +1088,15 @@ void generate_3d_laplacian_hip(int local_dimx,
     // Set boundary
     data->boundary_index = d_boundary;
 }
+
+void free(Data data)
+{
+	HIP_CHECK(hipFree(data.rhs_val));
+   HIP_CHECK(hipFree(data.diagonal_csr_row_ptr));
+   HIP_CHECK(hipFree(data.diagonal_csr_col_ind));
+	HIP_CHECK(hipFree(data.diagonal_csr_val));
+   HIP_CHECK(hipFree(data.offd_csr_row_ptr));
+   HIP_CHECK(hipFree(data.offd_csr_col_ind));
+	HIP_CHECK(hipFree(data.offd_csr_val));
+	HIP_CHECK(hipFree(data.boundary_index));
+}
