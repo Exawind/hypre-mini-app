@@ -51,7 +51,7 @@ public:
   HypreSystem(MPI_Comm, YAML::Node &);
 
   void load();
-
+  void setup_precon_and_solver();
   void solve();
 
   //! Output the HYPRE matrix, rhs and solution vectors
@@ -69,6 +69,9 @@ public:
 
   //! Destroy hypre linear system
   void destroy_system();
+
+  //! check amoutn of device memory in use
+  void checkMemory();
 
 private:
   HypreSystem() = delete;
@@ -122,8 +125,8 @@ private:
   //! Initialize hypre linear system
   void init_system();
 
-  //! finalize system
-  void finalize_system();
+  //! assemble system
+  void assemble_system();
 
   //! Setup BoomerAMG
   void setup_boomeramg_precond();
