@@ -17,6 +17,9 @@ void HypreSystem::load() {
   std::string mat_format =
       get_optional<std::string>(linsys, "type", "matrix_market");
 
+  if (iproc_ == 0)
+	  printf("%s : Using %s mat_format\n", __FUNCTION__, mat_format.c_str());
+
   if (mat_format == "matrix_market") {
     load_matrix_market();
   } else if (mat_format == "hypre_ij") {
@@ -32,44 +35,36 @@ void HypreSystem::load() {
     outputSystem_ = linsys["write_outputs"].as<bool>();
   if (linsys["write_solution"])
     outputSolution_ = linsys["write_solution"].as<bool>();
+}
 
+void HypreSystem::setup_precon_and_solver() {
   YAML::Node solver = inpfile_["solver_settings"];
   std::string method = solver["method"].as<std::string>();
   std::string preconditioner = solver["preconditioner"].as<std::string>();
+
+  if (iproc_ == 0)
+	  printf("%s : Using %s solver with %s preconditioner\n",
+				__FUNCTION__, method.c_str(), preconditioner.c_str());
 
   if (preconditioner == "boomeramg") {
     setup_boomeramg_precond();
   } else if (preconditioner == "none") {
     usePrecond_ = false;
-    if (iproc_ == 0)
-      std::cout << "No preconditioner used" << std::endl;
   } else {
     throw std::runtime_error("Invalid option for preconditioner provided" +
                              preconditioner);
   }
   if (!method.compare("gmres")) {
-    if (iproc_ == 0)
-      std::cout << "using GMRES solver" << std::endl;
     setup_gmres();
   } else if (!method.compare("cg")) {
-    if (iproc_ == 0)
-      std::cout << "using CG solver" << std::endl;
     setup_cg();
   } else if (!method.compare("bicg")) {
-    if (iproc_ == 0)
-      std::cout << "using BiCG solver" << std::endl;
     setup_bicg();
   } else if (!method.compare("fgmres")) {
-    if (iproc_ == 0)
-      std::cout << "using FlexGMRES solver" << std::endl;
     setup_fgmres();
   } else if (!method.compare("boomeramg")) {
-    if (iproc_ == 0)
-      std::cout << "using BOOMERANG solver" << std::endl;
     setup_boomeramg_solver();
   } else if (!method.compare("cogmres")) {
-    if (iproc_ == 0)
-      std::cout << "using CO-GMRES solver" << std::endl;
     setup_cogmres();
   } else {
     throw std::runtime_error("Invalid option for solver method provided: " +
@@ -383,19 +378,18 @@ void HypreSystem::destroy_system() {
   if (precond_)
     precondDestroyPtr_(precond_);
 
-  if (d_vector_indices_)hypre_TFree(d_vector_indices_, HYPRE_MEMORY_DEVICE);
-  if (d_vector_vals_)   hypre_TFree(d_vector_vals_, HYPRE_MEMORY_DEVICE);
-
-  if (d_rows_) hypre_TFree(d_rows_, HYPRE_MEMORY_DEVICE);
-  if (d_cols_) hypre_TFree(d_cols_, HYPRE_MEMORY_DEVICE);
-  if (d_offd_rows_) hypre_TFree(d_offd_rows_, HYPRE_MEMORY_DEVICE);
-  if (d_offd_cols_) hypre_TFree(d_offd_cols_, HYPRE_MEMORY_DEVICE);
-  if (d_vals_) hypre_TFree(d_vals_, HYPRE_MEMORY_DEVICE);
+  if (d_vector_indices_) hypre_TFree(d_vector_indices_, HYPRE_MEMORY_DEVICE);
+  if (d_vector_vals_)    hypre_TFree(d_vector_vals_, HYPRE_MEMORY_DEVICE);
+  if (d_rows_)           hypre_TFree(d_rows_, HYPRE_MEMORY_DEVICE);
+  if (d_cols_)           hypre_TFree(d_cols_, HYPRE_MEMORY_DEVICE);
+  if (d_offd_rows_)      hypre_TFree(d_offd_rows_, HYPRE_MEMORY_DEVICE);
+  if (d_offd_cols_)      hypre_TFree(d_offd_cols_, HYPRE_MEMORY_DEVICE);
+  if (d_vals_)           hypre_TFree(d_vals_, HYPRE_MEMORY_DEVICE);
 }
 
 void HypreSystem::init_row_decomposition() {
   if (iproc_ == 0)
-    printf("Computing row decomposition\n");
+    printf("\tComputing row decomposition\n");
 
   HYPRE_Int rowsPerProc = totalRows_ / nproc_;
   HYPRE_Int remainder = totalRows_ % nproc_;
@@ -406,7 +400,7 @@ void HypreSystem::init_row_decomposition() {
   numRows_ = iUpper_ - iLower_ + 1;
 
   MPI_Barrier(comm_);
-  std::cout << "  Rank: " << std::setw(4) << iproc_
+  std::cout << "\tRank: " << std::setw(4) << iproc_
             << " :: iLower = " << std::setw(9) << iLower_
             << "; iUpper = " << std::setw(9) << iUpper_
             << "; numRows = " << numRows_ << std::endl;
@@ -418,7 +412,7 @@ void HypreSystem::init_system() {
   MPI_Barrier(comm_);
   auto start = std::chrono::system_clock::now();
   if (iproc_ == 0)
-    printf("Initializing HYPRE data structures\n");
+    printf("\tInitializing HYPRE data structures\n");
 
   HYPRE_IJMatrixCreate(comm_, iLower_, iUpper_, iLower_, iUpper_, &mat_);
   HYPRE_IJMatrixSetObjectType(mat_, HYPRE_PARCSR);
@@ -468,7 +462,7 @@ void HypreSystem::init_system() {
   fflush(stdout);
 }
 
-void HypreSystem::finalize_system() {
+void HypreSystem::assemble_system() {
   auto start = std::chrono::system_clock::now();
   if (iproc_ == 0)
     printf("Assembling HYPRE data structures\n");
@@ -491,15 +485,64 @@ void HypreSystem::finalize_system() {
   MPI_Barrier(comm_);
   auto stop = std::chrono::system_clock::now();
   std::chrono::duration<double> elapsed = stop - start;
-  timers_.emplace_back("Finalize system", elapsed.count());
-  if (iproc_ == 0)
-    printf("  ... Done assembling HYPRE data structures\n");
+  timers_.emplace_back("Assemble system", elapsed.count());
   MPI_Barrier(comm_);
-  fflush(stdout);
+
+  /* delete unneeded memory */
+  if (d_vector_indices_) hypre_TFree(d_vector_indices_, HYPRE_MEMORY_DEVICE);
+  if (d_vector_vals_)    hypre_TFree(d_vector_vals_, HYPRE_MEMORY_DEVICE);
+  if (d_rows_)           hypre_TFree(d_rows_, HYPRE_MEMORY_DEVICE);
+  if (d_cols_)           hypre_TFree(d_cols_, HYPRE_MEMORY_DEVICE);
+  if (d_offd_rows_)      hypre_TFree(d_offd_rows_, HYPRE_MEMORY_DEVICE);
+  if (d_offd_cols_)      hypre_TFree(d_offd_cols_, HYPRE_MEMORY_DEVICE);
+  if (d_vals_)           hypre_TFree(d_vals_, HYPRE_MEMORY_DEVICE);
+
+  checkMemory();
+}
+
+void HypreSystem::checkMemory() {
+#ifdef HYPRE_USING_CUDA
+  int count;
+  cudaGetDeviceCount(&count);
+
+  // get the device from
+  int device = getDevice(nproc, count);
+
+  // set the device before calling HypreInit.
+  cudaSetDevice(device);
+  cudaGetDevice(&device);
+  size_t free, total;
+  cudaMemGetInfo(&free, &total);
+  cudaDeviceProp prop;
+  cudaGetDeviceProperties(&prop, device);
+  if (iproc == 0)
+	  printf("\trank=%d : %s %s %d : %s (cc=%d.%d): device=%d of %d : free "
+				"memory=%1.8g GB, total memory=%1.8g GB\n",
+				iproc, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.major,
+				prop.minor, device, count, free / 1.e9, total / 1.e9);
+#endif
+
+#ifdef HYPRE_USING_HIP
+	int count;
+	hipGetDeviceCount(&count);
+	int device;
+	hipGetDevice(&device);
+	size_t free, total;
+	hipMemGetInfo(&free, &total);
+	hipDeviceProp_t prop;
+	hipGetDeviceProperties(&prop, device);
+
+	if (iproc_ == 0)
+		printf("rank=%d : %s %s %d : %s arch=%d : device=%d of %d : free "
+				 "memory=%1.8g GB, total memory=%1.8g GB\n",
+				 iproc_, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.gcnArch,
+				 device, count, free / 1.e9, total / 1.e9);
+	fflush(stdout);
+#endif
 }
 
 void HypreSystem::solve() {
-  finalize_system();
+  assemble_system();
   std::chrono::duration<double> setup(0);
   std::chrono::duration<double> write_operators(0);
   std::chrono::duration<double> solve(0);
@@ -514,7 +557,11 @@ void HypreSystem::solve() {
     if (usePrecond_) {
       solverPrecondPtr_(solver_, precondSolvePtr_, precondSetupPtr_, precond_);
     }
-    solverSetupPtr_(solver_, parMat_, parRhs_[i], parSln_[i]);
+	 checkMemory();
+    if (iproc_ == 0)
+      printf("Setting up solver\n");
+	 solverSetupPtr_(solver_, parMat_, parRhs_[i], parSln_[i]);
+	 checkMemory();
     MPI_Barrier(comm_);
     auto stop1 = std::chrono::system_clock::now();
     setup += stop1 - start;
@@ -552,12 +599,10 @@ void HypreSystem::solve() {
     fflush(stdout);
   }
 
-  if (iproc_ == 0) {
-    timers_.emplace_back("Preconditioner setup", setup.count());
-    if (writeAmgMatrices_)
-      timers_.emplace_back("Write AMG Matrices", write_operators.count());
-    timers_.emplace_back("Solve", solve.count());
-  }
+  timers_.emplace_back("Preconditioner setup", setup.count());
+  if (writeAmgMatrices_)
+	  timers_.emplace_back("Write AMG Matrices", write_operators.count());
+  timers_.emplace_back("Solve", solve.count());
 
   solveComplete_ = true;
 }
@@ -722,7 +767,7 @@ void HypreSystem::summarize_timers() {
 
 void HypreSystem::hypre_matrix_set_values() {
   if (iproc_ == 0)
-    std::cout << "  ... loading matrix into HYPRE_IJMatrix" << std::endl;
+	  printf("%s : loading matrix into HYPRE_IJMatrix\n", __FUNCTION__);
 
   auto start = std::chrono::system_clock::now();
 
@@ -783,7 +828,7 @@ void HypreSystem::hypre_matrix_set_values() {
 void HypreSystem::hypre_vector_set_values(std::vector<HYPRE_IJVector> &vec,
                                           int component) {
   if (iproc_ == 0)
-    std::cout << "  ... loading vector into HYPRE_IJVector" << std::endl;
+	  printf("%s : loading vector into HYPRE_IJVector\n", __FUNCTION__);
 
   auto start = std::chrono::system_clock::now();
 
@@ -1010,8 +1055,7 @@ void HypreSystem::build_ij_matrix(std::string matfile, int nfiles) {
 
   // read the files
   if (iproc_ == 0)
-    std::cout << "Reading " << nfiles << " HYPRE IJ Matrix files... "
-              << std::endl;
+	  printf("%s : Reading %d HYPRE IJ Matrix files\n", __FUNCTION__, nfiles);
 
   HYPRE_Int ilower, iupper, jlower, jupper;
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
@@ -1085,9 +1129,8 @@ void HypreSystem::build_ij_vector(std::vector<std::string> &vecfiles,
   for (int i = 0; i < numComps_; ++i) {
     std::string vecfile = vecfiles[i];
 
-    if (iproc_ == 0)
-      std::cout << "Reading " << nfiles << " HYPRE IJ Vector files from "
-                << vecfile << std::endl;
+	 if (iproc_ == 0)
+		 printf("%s : Reading %d HYPRE IJ Vector files %s\n", __FUNCTION__, nfiles, vecfile.c_str());
 
     HYPRE_Int ilower, iupper;
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
@@ -1293,8 +1336,6 @@ void HypreSystem::validateOffdData(HYPRE_Int nnz, HYPRE_Int *drows, HYPRE_Int *d
 #endif
 
 void HypreSystem::build_27pt_stencil() {
-  if (iproc_ == 0)
-    std::cout << "Building 27 Pt Stencil for HYPRE_IJMatrix" << std::endl;
   auto start = std::chrono::system_clock::now();
 
   YAML::Node linsys = inpfile_["linear_system"];
@@ -1317,7 +1358,7 @@ void HypreSystem::build_27pt_stencil() {
   compute_3d_process_distribution(nproc_, nproc_x, nproc_y, nproc_z);
   if(iproc_ == 0)
   {
-	  printf("Process distribution: %d x %d x %d\n", nproc_x, nproc_y, nproc_z);
+	  printf("\tProcess distribution: %d x %d x %d\n", nproc_x, nproc_y, nproc_z);
   }
 
   // Generate problem
@@ -1418,9 +1459,6 @@ void HypreSystem::build_27pt_stencil() {
   HIP_CALL(hipGetLastError());
 
   free(data);
-
-  if (iproc_ == 0)
-    std::cout << "Done building 27 Pt Stencil for HYPRE_IJMatrix" << std::endl;
 
   MPI_Barrier(comm_);
   auto stop = std::chrono::system_clock::now();
@@ -1530,10 +1568,9 @@ void HypreSystem::determine_mm_system_sizes(std::string matfile) {
  *
  *******************/
 void HypreSystem::build_mm_matrix(std::string matfile) {
-  MPI_Barrier(comm_);
-  if (iproc_ == 0)
-    std::cout << "Reading from " << matfile << " into HYPRE_IJMatrix"
-              << std::endl;
+	MPI_Barrier(comm_);
+	if (iproc_ == 0)
+		 printf("%s : Reading from %s into HYPRE_IJMatrix\n", __FUNCTION__, matfile.c_str());
 
   auto start = std::chrono::system_clock::now();
 
@@ -1606,9 +1643,8 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
 
   for (int j = 0; j < numComps_; ++j) {
     std::string mmfile = mmfiles[j];
-    if (iproc_ == 0)
-      std::cout << "Reading from " << mmfile << " into HYPRE_IJVector"
-                << std::endl;
+	 if (iproc_ == 0)
+		 printf("%s : Reading from %s into HYPRE_IJVector\n", __FUNCTION__, mmfile.c_str());
 
     FILE *fh;
     MM_typecode matcode;

@@ -110,6 +110,7 @@ int main(int argc, char *argv[]) {
       nalu::get_optional(node, "umpire_device_pool_mbs", 4096);
   if (!iproc)
     std::cout << "umpire_device_pool_mbs=" << device_pool_size << std::endl;
+  HYPRE_SetUmpireDevicePoolName("HYPRE_DEVICE_POOL");
   HYPRE_SetUmpireDevicePoolSize(device_pool_size * 1024 * 1024);
 #endif
 
@@ -168,30 +169,11 @@ int main(int argc, char *argv[]) {
 
 	  nalu::HypreSystem linsys(MPI_COMM_WORLD, inpfile);
 
+	  linsys.setup_precon_and_solver();
+	  linsys.checkMemory();
 	  linsys.load();
-
-#ifdef HYPRE_USING_CUDA
-	  cudaMemGetInfo(&free, &total);
-	  if (iproc == 0)
-		  printf("\trank=%d : %s %s %d : %s (cc=%d.%d): device=%d of %d : free "
-					"memory=%1.8g GB, total memory=%1.8g GB\n",
-					iproc, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.major,
-					prop.minor, device, count, free / 1.e9, total / 1.e9);
-#endif
-
-#ifdef HYPRE_USING_HIP
-	  hipMemGetInfo(&free, &total);
-	  if (iproc == 0)
-		  printf("rank=%d : %s %s %d : %s arch=%d : device=%d of %d : free "
-					"memory=%1.8g GB, total memory=%1.8g GB\n",
-					iproc, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.gcnArch,
-					device, count, free / 1.e9, total / 1.e9);
-#endif
-	  fflush(stdout);
-	  MPI_Barrier(MPI_COMM_WORLD);
-
+	  linsys.checkMemory();
 	  linsys.solve();
-
 	  linsys.check_solution();
 	  linsys.output_linear_system();
 	  linsys.summarize_timers();
