@@ -1588,7 +1588,6 @@ void HypreSystem::build_mm_matrix(std::string matfile) {
   if ((fh = fopen(matfile.c_str(), "rt")) == NULL) {
     throw std::runtime_error("Cannot open matrix file: " + matfile);
   }
-
   err = mm_read_banner(fh, &matcode);
   if (err != 0)
     throw std::runtime_error("Cannot read matrix banner");
@@ -1600,25 +1599,44 @@ void HypreSystem::build_mm_matrix(std::string matfile) {
   if (err != 0)
     throw std::runtime_error("Cannot read matrix sizes in file: " + matfile);
 
+
+  fclose(fh);
+  int fd = open(matfile.c_str(), O_RDONLY);
+  struct stat s;
+  int status = fstat(fd, &s);
+  int64_t size = s.st_size;
+  char * f = (char *) mmap (0, size, PROT_READ, MAP_FILE|MAP_PRIVATE, fd, 0);
+  std::string all_lines(f);
+  std::string line;
+  int64_t found=0, pos=-1, rsize=0, len=0;
   rows_.resize(0);
   cols_.resize(0);
   vals_.resize(0);
-  for (int i = 0; i < nnz; i++) {
+  while (rsize<size)
+  {
+	  found = all_lines.find('\n', pos+1);
+	  int64_t len = found-pos;
+	  rsize+=len;
+	  line = all_lines.substr(pos+1, len);
+	  pos=found;
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
-    fscanf(fh, "%lld %lld %lf\n", &irow, &icol, &value);
+	  sscanf(line.c_str(), "%lld %lld %lf", &irow, &icol, &value);
 #else
-    fscanf(fh, "%d %d %lf\n", &irow, &icol, &value);
+	  sscanf(line.c_str(), "%d %d %lf", &irow, &icol, &value);
 #endif
 
-    irow--;
-    icol--;
+	  irow--;
+	  icol--;
 
-    if (irow >= iLower_ && irow <= iUpper_) {
-      rows_.push_back(irow);
-      cols_.push_back(icol);
-      vals_.push_back(value);
-    }
+	  if (irow >= iLower_ && irow <= iUpper_) {
+		  rows_.push_back(irow);
+		  cols_.push_back(icol);
+		  vals_.push_back(value);
+	  }
   }
+
+  int unmap_result = munmap(f, size);
+  close(fd);
 
   // Set the values of the matrix
   hypre_matrix_set_values();
@@ -1630,7 +1648,6 @@ void HypreSystem::build_mm_matrix(std::string matfile) {
                        elapsed.count());
   MPI_Barrier(comm_);
   fflush(stdout);
-  fclose(fh);
 }
 
 /*******************
@@ -1656,9 +1673,6 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
       throw std::runtime_error("Cannot open vector file: " + mmfile);
     }
 
-    vector_indices_.resize(0);
-    vector_values_.resize(0);
-
     err = mm_read_banner(fh, &matcode);
     if (err != 0)
       throw std::runtime_error("Cannot read array banner");
@@ -1673,19 +1687,40 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
     if ((msize != M_))
       throw std::runtime_error("Inconsistent sizes for Matrix and Vector");
 
-    for (int i = 0; i < msize; i++) {
-      fscanf(fh, "%lf\n", &value);
-      /* only read in the part owned by this rank */
-      if (i >= iLower_ && i <= iUpper_) {
-        vector_values_.push_back(value);
+	 /* Read in the file through memory mapping */
+	 fclose(fh);
+	 int fd = open(mmfile.c_str(), O_RDONLY);
+	 struct stat s;
+	 int status = fstat(fd, &s);
+	 int64_t size = s.st_size;
+	 char * f = (char *) mmap (0, size, PROT_READ, MAP_FILE|MAP_PRIVATE, fd, 0);
+	 std::string all_lines(f);
+	 std::string line;
+	 int64_t found=0, pos=-1, rsize=0, len=0, i=0;
+	 vector_indices_.resize(0);
+	 vector_values_.resize(0);
+
+	 while (rsize<size)
+	 {
+		 found = all_lines.find('\n', pos+1);
+		 int64_t len = found-pos;
+		 rsize+=len;
+		 line = all_lines.substr(pos+1, len);
+		 pos=found;
+		 if (i >= iLower_ && i <= iUpper_) {
+			 sscanf(line.c_str(), "%lf", &value);
+			 vector_values_.push_back(value);
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
-        vector_indices_.push_back((HYPRE_BigInt)i);
+			 vector_indices_.push_back((HYPRE_BigInt)i);
 #else
-        vector_indices_.push_back(i);
+			 vector_indices_.push_back(i);
 #endif
-      }
-    }
-    fclose(fh);
+		 }
+	 }
+
+	 int unmap_result = munmap(f, size);
+	 close(fd);
+
     /* build the vector */
     hypre_vector_set_values(vec, j);
   }

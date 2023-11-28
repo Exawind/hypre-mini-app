@@ -1,6 +1,14 @@
 #ifndef HYPRESYSTEM_H
 #define HYPRESYSTEM_H
 
+#include <stdio.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <sys/io.h>
+#include <sys/mman.h>
+
 #include "HYPRE.h"
 #include "HYPRE_parcsr_ls.h"
 #include "HYPRE_parcsr_mv.h"
