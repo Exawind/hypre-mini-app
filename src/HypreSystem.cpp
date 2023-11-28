@@ -1716,6 +1716,7 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
 			 vector_indices_.push_back(i);
 #endif
 		 }
+		 i++;
 	 }
 
 	 int unmap_result = munmap(f, size);
