@@ -190,7 +190,7 @@ int main(int argc, char *argv[]) {
 	  linsys.destroy_system();
   }
 
-  if (found_csv_profile_file)
+  if (found_csv_profile_file && iproc == 0)
   {
 	  FILE * fid = fopen(csv_profile_file.c_str(), "wt");
 	  size_t N = names.size();
