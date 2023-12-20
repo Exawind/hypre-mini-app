@@ -107,6 +107,7 @@ void HypreSystem::setup_boomeramg_precond() {
 
   HYPRE_BoomerAMGCreate(&precond_);
   HYPRE_BoomerAMGSetPrintLevel(precond_, get_optional(node, "print_level", 1));
+  HYPRE_BoomerAMGSetDebugFlag(precond_, get_optional(node, "debug_flag", 1));
   HYPRE_BoomerAMGSetCoarsenType(precond_,
                                 get_optional(node, "coarsen_type", 8));
   HYPRE_BoomerAMGSetCycleType(precond_, get_optional(node, "cycle_type", 1));
@@ -797,7 +798,7 @@ void HypreSystem::hypre_matrix_set_values() {
                 HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
 
   /* Use the fast path */
-  if (iproc_ == 0)
+  //if (iproc_ == 0)
 	  printf("rank=%d : %s %s %d : nnz_this_rank=%d\n", iproc_, __FILE__,
 				__FUNCTION__, __LINE__, nnz_this_rank);
   YAML::Node node = inpfile_["solver_settings"];
@@ -1609,30 +1610,41 @@ void HypreSystem::build_mm_matrix(std::string matfile) {
   std::string all_lines(f);
   std::string line;
   int64_t found=0, pos=-1, rsize=0, len=0;
+  bool foundHeader=false;
   rows_.resize(0);
   cols_.resize(0);
   vals_.resize(0);
   while (rsize<size)
   {
-	  found = all_lines.find('\n', pos+1);
-	  int64_t len = found-pos;
-	  rsize+=len;
-	  line = all_lines.substr(pos+1, len);
-	  pos=found;
+    found = all_lines.find('\n', pos+1);
+    int64_t len = found-pos;
+    rsize+=len;
+    line = all_lines.substr(pos+1, len);
+    pos=found;
+    if (line.find("%",0)==0)
+    {
+      foundHeader=true;
+      continue;
+    }
+    if (foundHeader)
+    {
+      foundHeader=false;
+      continue;
+    }
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
-	  sscanf(line.c_str(), "%lld %lld %lf", &irow, &icol, &value);
+    sscanf(line.c_str(), "%lld %lld %lf", &irow, &icol, &value);
 #else
-	  sscanf(line.c_str(), "%d %d %lf", &irow, &icol, &value);
+    sscanf(line.c_str(), "%d %d %lf", &irow, &icol, &value);
 #endif
 
-	  irow--;
-	  icol--;
-
-	  if (irow >= iLower_ && irow <= iUpper_) {
-		  rows_.push_back(irow);
-		  cols_.push_back(icol);
-		  vals_.push_back(value);
-	  }
+    irow--;
+    icol--;
+    
+    if (irow >= iLower_ && irow <= iUpper_) {
+      rows_.push_back(irow);
+      cols_.push_back(icol);
+      vals_.push_back(value);
+    }
   }
 
   int unmap_result = munmap(f, size);
@@ -1687,41 +1699,52 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
     if ((msize != M_))
       throw std::runtime_error("Inconsistent sizes for Matrix and Vector");
 
-	 /* Read in the file through memory mapping */
-	 fclose(fh);
-	 int fd = open(mmfile.c_str(), O_RDONLY);
-	 struct stat s;
-	 int status = fstat(fd, &s);
-	 int64_t size = s.st_size;
-	 char * f = (char *) mmap (0, size, PROT_READ, MAP_FILE|MAP_PRIVATE, fd, 0);
-	 std::string all_lines(f);
-	 std::string line;
-	 int64_t found=0, pos=-1, rsize=0, len=0, i=0;
-	 vector_indices_.resize(0);
-	 vector_values_.resize(0);
+    /* Read in the file through memory mapping */
+    fclose(fh);
+    int fd = open(mmfile.c_str(), O_RDONLY);
+    struct stat s;
+    int status = fstat(fd, &s);
+    int64_t size = s.st_size;
+    char * f = (char *) mmap (0, size, PROT_READ, MAP_FILE|MAP_PRIVATE, fd, 0);
+    std::string all_lines(f);
+    std::string line;
+    int64_t found=0, pos=-1, rsize=0, len=0, i=0;
+    bool foundHeader=false;
+    vector_indices_.resize(0);
+    vector_values_.resize(0);
 
-	 while (rsize<size)
-	 {
-		 found = all_lines.find('\n', pos+1);
-		 int64_t len = found-pos;
-		 rsize+=len;
-		 line = all_lines.substr(pos+1, len);
-		 pos=found;
-		 if (i >= iLower_ && i <= iUpper_) {
-			 sscanf(line.c_str(), "%lf", &value);
-			 vector_values_.push_back(value);
+    while (rsize<size)
+    {
+      found = all_lines.find('\n', pos+1);
+      int64_t len = found-pos;
+      rsize+=len;
+      line = all_lines.substr(pos+1, len);
+      pos=found;
+      if (line.find("%",0)==0)
+      {
+	foundHeader=true;
+	continue;
+      }
+      if (foundHeader)
+      {
+	foundHeader=false;
+	continue;
+      }
+      if (i >= iLower_ && i <= iUpper_) {
+	sscanf(line.c_str(), "%lf", &value);
+	vector_values_.push_back(value);
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
-			 vector_indices_.push_back((HYPRE_BigInt)i);
+	vector_indices_.push_back((HYPRE_BigInt)i);
 #else
-			 vector_indices_.push_back(i);
+	vector_indices_.push_back(i);
 #endif
-		 }
-		 i++;
-	 }
-
-	 int unmap_result = munmap(f, size);
-	 close(fd);
-
+      }
+      i++;
+    }
+    
+    int unmap_result = munmap(f, size);
+    close(fd);
+    
     /* build the vector */
     hypre_vector_set_values(vec, j);
   }
