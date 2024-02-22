@@ -49,10 +49,10 @@ int main(int argc, char *argv[]) {
   cudaDeviceProp prop;
   cudaGetDeviceProperties(&prop, device);
   if (iproc == 0)
-	  printf("\trank=%d : %s %s %d : %s (cc=%d.%d): device=%d of %d : free "
-				"memory=%1.8g GB, total memory=%1.8g GB\n",
-				iproc, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.major,
-				prop.minor, device, count, free / 1.e9, total / 1.e9);
+     printf("\trank=%d : %s %s %d : %s (cc=%d.%d): device=%d of %d : free "
+            "memory=%1.8g GB, total memory=%1.8g GB\n",
+            iproc, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.major,
+            prop.minor, device, count, free / 1.e9, total / 1.e9);
 #endif
 
 #ifdef HYPRE_USING_HIP
@@ -70,11 +70,11 @@ int main(int argc, char *argv[]) {
 
   hipDeviceProp_t prop;
   hipGetDeviceProperties(&prop, device);
-  if (iproc == 0)
-	  printf("rank=%d : %s %s %d : %s arch=%d : device=%d of %d : free "
-				"memory=%1.8g GB, total memory=%1.8g GB\n",
-				iproc, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.gcnArch,
-				device, count, free / 1.e9, total / 1.e9);
+  //if (iproc == 0)
+  printf("rank=%d : %s %s %d : %s arch=%d : device=%d of %d : free "
+         "memory=%1.8g GB, total memory=%1.8g GB\n",
+         iproc, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.gcnArchName,
+         device, count, free / 1.e9, total / 1.e9);
 #endif
   fflush(stdout);
   MPI_Barrier(MPI_COMM_WORLD);
@@ -164,53 +164,53 @@ int main(int argc, char *argv[]) {
   HYPRE_Int num_tests = nalu::get_optional(node, "num_tests", 1);
   for (int i=0; i<num_tests; ++i)
   {
-	  // reset the random number generator
-	  hypre_ResetDeviceRandGenerator(1234ULL, 0ULL);
+     // reset the random number generator
+     hypre_ResetDeviceRandGenerator(1234ULL, 0ULL);
 
-	  nalu::HypreSystem linsys(MPI_COMM_WORLD, inpfile);
+     nalu::HypreSystem linsys(MPI_COMM_WORLD, inpfile);
 
-	  linsys.setup_precon_and_solver();
-	  linsys.checkMemory();
-	  linsys.load();
-	  linsys.checkMemory();
-	  linsys.solve();
-	  linsys.check_solution();
-	  linsys.output_linear_system();
-	  linsys.summarize_timers();
+     linsys.setup_precon_and_solver();
+     linsys.checkMemory();
+     linsys.load();
+     linsys.checkMemory();
+     linsys.solve();
+     linsys.check_solution();
+     linsys.output_linear_system();
+     linsys.summarize_timers();
 
-	  if (found_csv_profile_file)
-		  linsys.retrieve_timers(names,data);
+     if (found_csv_profile_file)
+        linsys.retrieve_timers(names,data);
 
-	  MPI_Barrier(MPI_COMM_WORLD);
-	  auto stop = std::chrono::system_clock::now();
-	  std::chrono::duration<double> elapsed = stop - start;
-	  if (iproc == 0)
-		  std::cout << "Total time: " << elapsed.count() << " seconds" << std::endl;
+     MPI_Barrier(MPI_COMM_WORLD);
+     auto stop = std::chrono::system_clock::now();
+     std::chrono::duration<double> elapsed = stop - start;
+     if (iproc == 0)
+        std::cout << "Total time: " << elapsed.count() << " seconds" << std::endl;
 
-	  linsys.destroy_system();
+     linsys.destroy_system();
   }
 
   if (found_csv_profile_file && iproc == 0)
   {
-	  FILE * fid = fopen(csv_profile_file.c_str(), "wt");
-	  size_t N = names.size();
-	  size_t M = data[0].size();
-	  for (int i = 0; i < N; ++i)
-	  {
-		  if (i<N-1)
-			  fprintf(fid, "%s,", names[i].c_str());
-		  else
-			  fprintf(fid, "%s\n", names[i].c_str());
-	  }
-	  for (int j = 0; j < M; ++j)
-		  for (int i = 0; i < N; ++i)
-		  {
-			  if (i<N-1)
-				  fprintf(fid, "%1.15g,", data[i][j]);
-			  else
-			  fprintf(fid, "%1.15g\n", data[i][j]);
-		  }
-	  fclose(fid);
+     FILE * fid = fopen(csv_profile_file.c_str(), "wt");
+     size_t N = names.size();
+     size_t M = data[0].size();
+     for (int i = 0; i < N; ++i)
+     {
+        if (i<N-1)
+           fprintf(fid, "%s,", names[i].c_str());
+        else
+           fprintf(fid, "%s\n", names[i].c_str());
+     }
+     for (int j = 0; j < M; ++j)
+        for (int i = 0; i < N; ++i)
+        {
+           if (i<N-1)
+              fprintf(fid, "%1.15g,", data[i][j]);
+           else
+           fprintf(fid, "%1.15g\n", data[i][j]);
+        }
+     fclose(fid);
   }
 
   HYPRE_Finalize();
