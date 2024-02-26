@@ -528,9 +528,9 @@ void HypreSystem::checkMemory() {
    hipDeviceProp_t prop;
    hipGetDeviceProperties(&prop, device);
    //if (iproc_ == 0)
-   printf("rank=%d : %s %s %d : %s arch=%d : device=%d of %d : free "
+   printf("rank=%d : %s %s %d : %s arch=%s : device=%d of %d : free "
           "memory=%1.8g GB, total memory=%1.8g GB\n",
-          iproc_, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.gcnArch,
+          iproc_, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.gcnArchName,
           device, count, free / 1.e9, total / 1.e9);
    fflush(stdout);
 #endif
