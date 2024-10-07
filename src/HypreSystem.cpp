@@ -1,5 +1,10 @@
 #include "HypreSystem.h"
+#include "GpuQualifiers.h"
+
+#if defined (HYPER_USING_HIP)
 #include "laplace_3d_weak_scaling.hpp"
+#endif
+
 
 namespace nalu {
 HypreSystem::HypreSystem(MPI_Comm comm, YAML::Node &inpfile)
@@ -1186,7 +1191,7 @@ void HypreSystem::build_ij_vector(std::vector<std::string> &vecfiles,
 /********************************************************************************/
 /*                         Build 27 Pt Stencil                                  */
 /********************************************************************************/
-__global__ void
+GPU_GLOBAL void
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
 fillGlobalRowIndices(HYPRE_BigInt n, HYPRE_BigInt iLower, int * row_ptr, HYPRE_BigInt * global_row_inds)
 #else
@@ -1208,7 +1213,7 @@ fillGlobalRowIndices(HYPRE_Int n, HYPRE_Int iLower, int * row_ptr, HYPRE_Int * g
    return;
 }
 
-__global__ void
+GPU_GLOBAL void
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
 fillGlobalColIndices(HYPRE_BigInt nnz, HYPRE_BigInt shift, int * col_inds, HYPRE_BigInt * global_col_inds)
 #else
