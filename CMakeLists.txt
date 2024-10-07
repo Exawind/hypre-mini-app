@@ -57,6 +57,7 @@ endif()
 
 if(ENABLE_HIP OR ENABLE_CUDA)
   set(USE_GPU ON)
+  target_compile_definitions(hypre_app_lib PUBLIC USE_GPU) 
 endif()
 ########################## HYPRE ####################################
 set(CMAKE_PREFIX_PATH ${HYPRE_DIR} ${CMAKE_PREFIX_PATH})

@@ -165,7 +165,9 @@ int main(int argc, char *argv[]) {
   for (int i=0; i<num_tests; ++i)
   {
      // reset the random number generator
+#if defined(USE_GPU)
      hypre_ResetDeviceRandGenerator(1234ULL, 0ULL);
+#endif
 
      nalu::HypreSystem linsys(MPI_COMM_WORLD, inpfile);
 
