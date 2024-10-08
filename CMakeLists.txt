@@ -7,8 +7,6 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 option(ENABLE_CUDA "Enable Nvidia CUDA" OFF)
 option(ENABLE_HIP "Enable HIP/ROCm" OFF)
 option(ENABLE_UMPIRE "Enable Umpire GPU memory pools" OFF)
-option(USE_GPU "Check if building on GPUs" OFF)
-option(USE_APPLE_CLANG "Check if building on MacOS " OFF)
 
 set(CMAKE_CXX_STANDARD 14)       # Set nalu-wind C++14 standard
 set(CMAKE_CXX_EXTENSIONS OFF)    # Do not enable GNU extensions
@@ -56,7 +54,6 @@ if (ENABLE_HIP)
 endif()
 
 if(ENABLE_HIP OR ENABLE_CUDA)
-  set(USE_GPU ON)
   target_compile_definitions(hypre_app_lib PUBLIC USE_GPU) 
 endif()
 ########################## HYPRE ####################################
