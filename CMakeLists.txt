@@ -53,7 +53,9 @@ if (ENABLE_HIP)
     hip::host)
 endif()
 
-
+if(ENABLE_HIP OR ENABLE_CUDA)
+  target_compile_definitions(hypre_app_lib PUBLIC USE_GPU) 
+endif()
 ########################## HYPRE ####################################
 set(CMAKE_PREFIX_PATH ${HYPRE_DIR} ${CMAKE_PREFIX_PATH})
 find_package(HYPRE 2.20.0 REQUIRED)

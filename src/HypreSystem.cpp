@@ -1,5 +1,10 @@
 #include "HypreSystem.h"
+#include "GpuQualifiers.h"
+
+#if defined (HYPER_USING_HIP)
 #include "laplace_3d_weak_scaling.hpp"
+#endif
+
 
 namespace nalu {
 HypreSystem::HypreSystem(MPI_Comm comm, YAML::Node &inpfile)
@@ -25,7 +30,11 @@ void HypreSystem::load() {
   } else if (mat_format == "hypre_ij") {
     load_hypre_format();
   } else if (mat_format == "build_27pt_stencil") {
+#if defined(HYPRE_USING_HIP)
     build_27pt_stencil();
+#else
+throw std::runtime_error("Cannot use build_27pt_stencil() without Hypre HIP support");
+#endif
   } else {
     throw std::runtime_error("Invalid linear system format option: " +
                              mat_format);
@@ -1186,7 +1195,8 @@ void HypreSystem::build_ij_vector(std::vector<std::string> &vecfiles,
 /********************************************************************************/
 /*                         Build 27 Pt Stencil                                  */
 /********************************************************************************/
-__global__ void
+#if defined(HYPER_USING_HIP)
+GPU_GLOBAL void
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
 fillGlobalRowIndices(HYPRE_BigInt n, HYPRE_BigInt iLower, int * row_ptr, HYPRE_BigInt * global_row_inds)
 #else
@@ -1207,8 +1217,10 @@ fillGlobalRowIndices(HYPRE_Int n, HYPRE_Int iLower, int * row_ptr, HYPRE_Int * g
    }
    return;
 }
+#endif
 
-__global__ void
+#if defined(HYPRE_USING_HIP)
+GPU_GLOBAL void
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
 fillGlobalColIndices(HYPRE_BigInt nnz, HYPRE_BigInt shift, int * col_inds, HYPRE_BigInt * global_col_inds)
 #else
@@ -1225,7 +1237,9 @@ fillGlobalColIndices(HYPRE_Int nnz, HYPRE_Int shift, int * col_inds, HYPRE_Int *
    }
    return;
 }
+#endif
 
+#if (HYPRE_USING_HIP)
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
 void HypreSystem::validateDiagData(HYPRE_BigInt nnz, HYPRE_BigInt *drows, HYPRE_BigInt *dcols)
 {
@@ -1277,7 +1291,9 @@ void HypreSystem::validateDiagData(HYPRE_Int nnz, HYPRE_Int *drows, HYPRE_Int *d
    return;
 }
 #endif
+#endif
 
+#if defined(HYPRE_USING_HIP)
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
 void HypreSystem::validateOffdData(HYPRE_BigInt nnz, HYPRE_BigInt *drows, HYPRE_BigInt *dcols)
 {
@@ -1329,7 +1345,9 @@ void HypreSystem::validateOffdData(HYPRE_Int nnz, HYPRE_Int *drows, HYPRE_Int *d
    return;
 }
 #endif
+#endif
 
+#if defined(HYPRE_USING_HIP)
 void HypreSystem::build_27pt_stencil() {
   auto start = std::chrono::system_clock::now();
 
@@ -1462,7 +1480,7 @@ void HypreSystem::build_27pt_stencil() {
   MPI_Barrier(comm_);
   fflush(stdout);
 }
-
+#endif
 /********************************************************************************/
 /*                          Matrix Market Format                                */
 /********************************************************************************/

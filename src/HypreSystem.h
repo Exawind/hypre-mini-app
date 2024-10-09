@@ -6,7 +6,13 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#if defined(__APPLE__)
+#include <sys/uio.h>
+#else
 #include <sys/io.h>
+#endif
+
 #include <sys/mman.h>
 
 #include "HYPRE.h"
@@ -28,8 +34,11 @@ extern "C" {
 #include <iomanip>
 #include <iostream>
 
+#if defined(HYPRE_USING_CUDA) || (HYPRE_USING_HIP)
 #include <thrust/sequence.h>
 #include <thrust/execution_policy.h>
+#endif
+
 
 #define HIP_CALL(call)                                                         \
   do {                                                                         \
