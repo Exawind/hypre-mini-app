@@ -1,3 +1,6 @@
+#ifndef GPUQUALIFIERS_H
+#define GPUQUALIFIERS_H
+
 #if defined (USE_GPU)
 
 #define GPU_HOST __host__
@@ -13,4 +16,4 @@
 #define GPU_HOST_DEVICE
 
 #endif
-
+#endif
