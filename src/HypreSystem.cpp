@@ -520,10 +520,10 @@ void HypreSystem::checkMemory() {
   cudaMemGetInfo(&free, &total);
   cudaDeviceProp prop;
   cudaGetDeviceProperties(&prop, device);
-  if (iproc == 0)
+  if (iproc_ == 0)
      printf("\trank=%d : %s %s %d : %s (cc=%d.%d): device=%d of %d : free "
             "memory=%1.8g GB, total memory=%1.8g GB\n",
-            iproc, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.major,
+            iproc_, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.major,
             prop.minor, device, count, free / 1.e9, total / 1.e9);
 #endif
 
