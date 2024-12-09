@@ -1,10 +1,10 @@
 #ifndef HYPRESYSTEM_H
 #define HYPRESYSTEM_H
 
-#include <stdio.h>
 #include <fcntl.h>
-#include <sys/types.h>
+#include <stdio.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #if defined(__APPLE__)
@@ -35,10 +35,9 @@ extern "C" {
 #include <iostream>
 
 #if defined(HYPRE_USING_CUDA) || (HYPRE_USING_HIP)
-#include <thrust/sequence.h>
 #include <thrust/execution_policy.h>
+#include <thrust/sequence.h>
 #endif
-
 
 #define HIP_CALL(call)                                                         \
   do {                                                                         \
@@ -81,8 +80,8 @@ public:
   void summarize_timers();
 
   //! retrieve timers to dump to csv file
-  void retrieve_timers(std::vector<std::string>& names,
-							  std::vector<std::vector<double>>& data);
+  void retrieve_timers(std::vector<std::string> &names,
+                       std::vector<std::vector<double>> &data);
 
   //! Destroy hypre linear system
   void destroy_system();
@@ -133,7 +132,7 @@ private:
   void hypre_matrix_set_values();
 
   //! Build the HYPRE_IJVector from data loaded from either IJ or matrix market
-	void hypre_vector_set_values(std::vector<HYPRE_IJVector> &vec, int component);
+  void hypre_vector_set_values(std::vector<HYPRE_IJVector> &vec, int component);
 
   //! Load the matrix into HYPRE_IJVector
   void build_mm_vector(std::vector<std::string> &,
@@ -156,6 +155,7 @@ private:
   void setup_fgmres();
   void setup_bicg();
   void setup_cg();
+  void setup_ilu();
 
   //! MPI Communicator object
   MPI_Comm comm_;
@@ -169,13 +169,13 @@ private:
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
   std::vector<HYPRE_BigInt> rows_;
   std::vector<HYPRE_BigInt> cols_;
-  HYPRE_BigInt *d_rows_=NULL;
-  HYPRE_BigInt *d_cols_=NULL;
-  HYPRE_BigInt *d_offd_rows_=NULL;
-  HYPRE_BigInt *d_offd_cols_=NULL;
+  HYPRE_BigInt *d_rows_ = NULL;
+  HYPRE_BigInt *d_cols_ = NULL;
+  HYPRE_BigInt *d_offd_rows_ = NULL;
+  HYPRE_BigInt *d_offd_cols_ = NULL;
 
   std::vector<HYPRE_BigInt> vector_indices_;
-  HYPRE_BigInt *d_vector_indices_=NULL;
+  HYPRE_BigInt *d_vector_indices_ = NULL;
 
   //! Global number of rows in the linear system
   HYPRE_BigInt totalRows_{0};
@@ -191,13 +191,13 @@ private:
 #else
   std::vector<HYPRE_Int> rows_;
   std::vector<HYPRE_Int> cols_;
-  HYPRE_Int *d_rows_=NULL;
-  HYPRE_Int *d_cols_=NULL;
-  HYPRE_Int *d_offd_rows_=NULL;
-  HYPRE_Int *d_offd_cols_=NULL;
+  HYPRE_Int *d_rows_ = NULL;
+  HYPRE_Int *d_cols_ = NULL;
+  HYPRE_Int *d_offd_rows_ = NULL;
+  HYPRE_Int *d_offd_cols_ = NULL;
 
   std::vector<HYPRE_Int> vector_indices_;
-  HYPRE_Int *d_vector_indices_=NULL;
+  HYPRE_Int *d_vector_indices_ = NULL;
 
   //! Global number of rows in the linear system
   HYPRE_Int totalRows_{0};
@@ -214,10 +214,10 @@ private:
 #endif
 
   std::vector<double> vals_;
-  HYPRE_Complex *d_vals_=NULL;
+  HYPRE_Complex *d_vals_ = NULL;
 
   std::vector<double> vector_values_;
-  HYPRE_Complex *d_vector_vals_=NULL;
+  HYPRE_Complex *d_vector_vals_ = NULL;
 
   //! Timers
   std::vector<std::pair<std::string, double>> timers_;

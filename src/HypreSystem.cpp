@@ -1,10 +1,9 @@
 #include "HypreSystem.h"
 #include "GpuQualifiers.h"
 
-#if defined (HYPER_USING_HIP)
+#if defined(HYPER_USING_HIP)
 #include "laplace_3d_weak_scaling.hpp"
 #endif
-
 
 namespace nalu {
 HypreSystem::HypreSystem(MPI_Comm comm, YAML::Node &inpfile)
@@ -23,7 +22,7 @@ void HypreSystem::load() {
       get_optional<std::string>(linsys, "type", "matrix_market");
 
   if (iproc_ == 0)
-     printf("%s : Using %s mat_format\n", __FUNCTION__, mat_format.c_str());
+    printf("%s : Using %s mat_format\n", __FUNCTION__, mat_format.c_str());
 
   if (mat_format == "matrix_market") {
     load_matrix_market();
@@ -33,7 +32,8 @@ void HypreSystem::load() {
 #if defined(HYPRE_USING_HIP)
     build_27pt_stencil();
 #else
-throw std::runtime_error("Cannot use build_27pt_stencil() without Hypre HIP support");
+    throw std::runtime_error(
+        "Cannot use build_27pt_stencil() without Hypre HIP support");
 #endif
   } else {
     throw std::runtime_error("Invalid linear system format option: " +
@@ -52,8 +52,8 @@ void HypreSystem::setup_precon_and_solver() {
   std::string preconditioner = solver["preconditioner"].as<std::string>();
 
   if (iproc_ == 0)
-     printf("%s : Using %s solver with %s preconditioner\n",
-            __FUNCTION__, method.c_str(), preconditioner.c_str());
+    printf("%s : Using %s solver with %s preconditioner\n", __FUNCTION__,
+           method.c_str(), preconditioner.c_str());
 
   if (preconditioner == "boomeramg") {
     setup_boomeramg_precond();
@@ -75,6 +75,8 @@ void HypreSystem::setup_precon_and_solver() {
     setup_boomeramg_solver();
   } else if (!method.compare("cogmres")) {
     setup_cogmres();
+  } else if (!method.compare("ilu")) {
+    setup_ilu();
   } else {
     throw std::runtime_error("Invalid option for solver method provided: " +
                              method);
@@ -360,15 +362,35 @@ void HypreSystem::setup_cg() {
   HYPRE_ParCSRPCGCreate(comm_, &solver_);
   HYPRE_ParCSRPCGSetTol(solver_, get_optional(node, "tolerance", 1.0e-5));
   HYPRE_ParCSRPCGSetMaxIter(solver_,
-                                 get_optional(node, "max_iterations", 1000));
+                            get_optional(node, "max_iterations", 1000));
   // HYPRE_ParCSRPCGSetKDim(solver_, get_optional(node, "kspace", 10));
-  HYPRE_ParCSRPCGSetPrintLevel(solver_,
-                                    get_optional(node, "print_level", 4));
+  HYPRE_ParCSRPCGSetPrintLevel(solver_, get_optional(node, "print_level", 4));
 
   solverDestroyPtr_ = &HYPRE_ParCSRPCGDestroy;
   solverSetupPtr_ = &HYPRE_ParCSRPCGSetup;
   solverPrecondPtr_ = &HYPRE_ParCSRPCGSetPrecond;
   solverSolvePtr_ = &HYPRE_ParCSRPCGSolve;
+}
+
+void HypreSystem::setup_ilu() {
+  YAML::Node node = inpfile_["solver_settings"];
+  HYPRE_ILUCreate(&solver_);
+  HYPRE_ILUSetType(solver_, get_optional(node, "ilu_type", 0));
+  HYPRE_ILUSetMaxIter(solver_, get_optional(node, "max_iterations", 20));
+  HYPRE_ILUSetPrintLevel(solver_, get_optional(node, "print_level", 4));
+
+  HYPRE_ILUSetIterativeSetupType(solver_,
+                                 get_optional(node, "algorithm_type", 0));
+  HYPRE_ILUSetIterativeSetupMaxIter(
+      solver_, get_optional(node, "max_ilu_iterations", 1));
+  HYPRE_ILUSetIterativeSetupTolerance(
+      solver_, get_optional(node, "iterative_ilu_tolerance", 1e-5));
+  HYPRE_ILUSetTriSolve(solver_, get_optional(node, "trisolve", 1));
+
+  solverDestroyPtr_ = &HYPRE_ILUDestroy;
+  solverSetupPtr_ = &HYPRE_ILUSetup;
+  solverPrecondPtr_ = nullptr;
+  solverSolvePtr_ = &HYPRE_ILUSolve;
 }
 
 void HypreSystem::destroy_system() {
@@ -388,13 +410,20 @@ void HypreSystem::destroy_system() {
   if (precond_)
     precondDestroyPtr_(precond_);
 
-  if (d_vector_indices_) hypre_TFree(d_vector_indices_, HYPRE_MEMORY_DEVICE);
-  if (d_vector_vals_)    hypre_TFree(d_vector_vals_, HYPRE_MEMORY_DEVICE);
-  if (d_rows_)           hypre_TFree(d_rows_, HYPRE_MEMORY_DEVICE);
-  if (d_cols_)           hypre_TFree(d_cols_, HYPRE_MEMORY_DEVICE);
-  if (d_offd_rows_)      hypre_TFree(d_offd_rows_, HYPRE_MEMORY_DEVICE);
-  if (d_offd_cols_)      hypre_TFree(d_offd_cols_, HYPRE_MEMORY_DEVICE);
-  if (d_vals_)           hypre_TFree(d_vals_, HYPRE_MEMORY_DEVICE);
+  if (d_vector_indices_)
+    hypre_TFree(d_vector_indices_, HYPRE_MEMORY_DEVICE);
+  if (d_vector_vals_)
+    hypre_TFree(d_vector_vals_, HYPRE_MEMORY_DEVICE);
+  if (d_rows_)
+    hypre_TFree(d_rows_, HYPRE_MEMORY_DEVICE);
+  if (d_cols_)
+    hypre_TFree(d_cols_, HYPRE_MEMORY_DEVICE);
+  if (d_offd_rows_)
+    hypre_TFree(d_offd_rows_, HYPRE_MEMORY_DEVICE);
+  if (d_offd_cols_)
+    hypre_TFree(d_offd_cols_, HYPRE_MEMORY_DEVICE);
+  if (d_vals_)
+    hypre_TFree(d_vals_, HYPRE_MEMORY_DEVICE);
 }
 
 void HypreSystem::init_row_decomposition() {
@@ -499,13 +528,20 @@ void HypreSystem::assemble_system() {
   MPI_Barrier(comm_);
 
   /* delete unneeded memory */
-  if (d_vector_indices_) hypre_TFree(d_vector_indices_, HYPRE_MEMORY_DEVICE);
-  if (d_vector_vals_)    hypre_TFree(d_vector_vals_, HYPRE_MEMORY_DEVICE);
-  if (d_rows_)           hypre_TFree(d_rows_, HYPRE_MEMORY_DEVICE);
-  if (d_cols_)           hypre_TFree(d_cols_, HYPRE_MEMORY_DEVICE);
-  if (d_offd_rows_)      hypre_TFree(d_offd_rows_, HYPRE_MEMORY_DEVICE);
-  if (d_offd_cols_)      hypre_TFree(d_offd_cols_, HYPRE_MEMORY_DEVICE);
-  if (d_vals_)           hypre_TFree(d_vals_, HYPRE_MEMORY_DEVICE);
+  if (d_vector_indices_)
+    hypre_TFree(d_vector_indices_, HYPRE_MEMORY_DEVICE);
+  if (d_vector_vals_)
+    hypre_TFree(d_vector_vals_, HYPRE_MEMORY_DEVICE);
+  if (d_rows_)
+    hypre_TFree(d_rows_, HYPRE_MEMORY_DEVICE);
+  if (d_cols_)
+    hypre_TFree(d_cols_, HYPRE_MEMORY_DEVICE);
+  if (d_offd_rows_)
+    hypre_TFree(d_offd_rows_, HYPRE_MEMORY_DEVICE);
+  if (d_offd_cols_)
+    hypre_TFree(d_offd_cols_, HYPRE_MEMORY_DEVICE);
+  if (d_vals_)
+    hypre_TFree(d_vals_, HYPRE_MEMORY_DEVICE);
 
   checkMemory();
 }
@@ -521,27 +557,27 @@ void HypreSystem::checkMemory() {
   cudaDeviceProp prop;
   cudaGetDeviceProperties(&prop, device);
   if (iproc_ == 0)
-     printf("\trank=%d : %s %s %d : %s (cc=%d.%d): device=%d of %d : free "
-            "memory=%1.8g GB, total memory=%1.8g GB\n",
-            iproc_, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.major,
-            prop.minor, device, count, free / 1.e9, total / 1.e9);
+    printf("\trank=%d : %s %s %d : %s (cc=%d.%d): device=%d of %d : free "
+           "memory=%1.8g GB, total memory=%1.8g GB\n",
+           iproc_, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.major,
+           prop.minor, device, count, free / 1.e9, total / 1.e9);
 #endif
 
 #ifdef HYPRE_USING_HIP
-   int count;
-   hipGetDeviceCount(&count);
-   int device;
-   hipGetDevice(&device);
-   size_t free, total;
-   hipMemGetInfo(&free, &total);
-   hipDeviceProp_t prop;
-   hipGetDeviceProperties(&prop, device);
-   //if (iproc_ == 0)
-   printf("rank=%d : %s %s %d : %s arch=%s : device=%d of %d : free "
-          "memory=%1.8g GB, total memory=%1.8g GB\n",
-          iproc_, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.gcnArchName,
-          device, count, free / 1.e9, total / 1.e9);
-   fflush(stdout);
+  int count;
+  hipGetDeviceCount(&count);
+  int device;
+  hipGetDevice(&device);
+  size_t free, total;
+  hipMemGetInfo(&free, &total);
+  hipDeviceProp_t prop;
+  hipGetDeviceProperties(&prop, device);
+  // if (iproc_ == 0)
+  printf("rank=%d : %s %s %d : %s arch=%s : device=%d of %d : free "
+         "memory=%1.8g GB, total memory=%1.8g GB\n",
+         iproc_, __FUNCTION__, __FILE__, __LINE__, prop.name, prop.gcnArchName,
+         device, count, free / 1.e9, total / 1.e9);
+  fflush(stdout);
 #endif
 }
 
@@ -551,7 +587,7 @@ void HypreSystem::solve() {
   std::chrono::duration<double> write_operators(0);
   std::chrono::duration<double> solve(0);
 
-  //hypre_CSRMatrixGpuSpMVAnalysis(hypre_ParCSRMatrixDiag(parMat_));
+  // hypre_CSRMatrixGpuSpMVAnalysis(hypre_ParCSRMatrixDiag(parMat_));
 
   for (int i = 0; i < numSolves_; ++i) {
     if (iproc_ == 0)
@@ -605,7 +641,7 @@ void HypreSystem::solve() {
 
   timers_.emplace_back("Preconditioner setup", setup.count());
   if (writeAmgMatrices_)
-     timers_.emplace_back("Write AMG Matrices", write_operators.count());
+    timers_.emplace_back("Write AMG Matrices", write_operators.count());
   timers_.emplace_back("Solve", solve.count());
 
   solveComplete_ = true;
@@ -719,36 +755,30 @@ void HypreSystem::check_solution() {
   timers_.emplace_back("Check solution", elapsed.count());
 }
 
-void HypreSystem::retrieve_timers(std::vector<std::string>& names,
-                                  std::vector<std::vector<double>> & data) {
+void HypreSystem::retrieve_timers(std::vector<std::string> &names,
+                                  std::vector<std::vector<double>> &data) {
   if (iproc_ != 0)
     return;
 
-  if (names.size()==0)
-  {
-     for (auto &timer : timers_)
-        names.push_back(std::string(timer.first));
-     data.resize(names.size());
-     int k=0;
-     for (auto &timer : timers_)
-     {
-        data[k].push_back(double(timer.second));
-        k++;
-     }
-  }
-  else
-  {
-     for (auto &timer : timers_)
-     {
-        auto it = std::find(names.begin(), names.end(), timer.first);
+  if (names.size() == 0) {
+    for (auto &timer : timers_)
+      names.push_back(std::string(timer.first));
+    data.resize(names.size());
+    int k = 0;
+    for (auto &timer : timers_) {
+      data[k].push_back(double(timer.second));
+      k++;
+    }
+  } else {
+    for (auto &timer : timers_) {
+      auto it = std::find(names.begin(), names.end(), timer.first);
 
-        // If element was found
-        if (it != names.end())
-        {
-           int k = it - names.begin();
-           data[k].push_back(double(timer.second));
-        }
-     }
+      // If element was found
+      if (it != names.end()) {
+        int k = it - names.begin();
+        data[k].push_back(double(timer.second));
+      }
+    }
   }
 }
 
@@ -771,7 +801,7 @@ void HypreSystem::summarize_timers() {
 
 void HypreSystem::hypre_matrix_set_values() {
   if (iproc_ == 0)
-     printf("%s : loading matrix into HYPRE_IJMatrix\n", __FUNCTION__);
+    printf("%s : loading matrix into HYPRE_IJMatrix\n", __FUNCTION__);
 
   auto start = std::chrono::system_clock::now();
 
@@ -801,9 +831,9 @@ void HypreSystem::hypre_matrix_set_values() {
                 HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
 
   /* Use the fast path */
-  //if (iproc_ == 0)
-     printf("rank=%d : %s %s %d : nnz_this_rank=%d\n", iproc_, __FILE__,
-            __FUNCTION__, __LINE__, nnz_this_rank);
+  // if (iproc_ == 0)
+  printf("rank=%d : %s %s %d : nnz_this_rank=%d\n", iproc_, __FILE__,
+         __FUNCTION__, __LINE__, nnz_this_rank);
   YAML::Node node = inpfile_["solver_settings"];
   if (get_optional(node, "fast_matrix_assemble", 0)) {
 #if 0
@@ -832,7 +862,7 @@ void HypreSystem::hypre_matrix_set_values() {
 void HypreSystem::hypre_vector_set_values(std::vector<HYPRE_IJVector> &vec,
                                           int component) {
   if (iproc_ == 0)
-     printf("%s : loading vector into HYPRE_IJVector\n", __FUNCTION__);
+    printf("%s : loading vector into HYPRE_IJVector\n", __FUNCTION__);
 
   auto start = std::chrono::system_clock::now();
 
@@ -863,8 +893,8 @@ void HypreSystem::hypre_vector_set_values(std::vector<HYPRE_IJVector> &vec,
 
   /* Use the fast path. This probably doesn't work with multivectors yet */
   if (iproc_ == 0)
-     printf("rank=%d : %s %s %d : N=%d\n", iproc_, __FILE__, __FUNCTION__,
-            __LINE__, N);
+    printf("rank=%d : %s %s %d : N=%d\n", iproc_, __FILE__, __FUNCTION__,
+           __LINE__, N);
   YAML::Node node = inpfile_["solver_settings"];
   if (get_optional(node, "fast_vector_assemble", 0)) {
 #if 0
@@ -1059,7 +1089,7 @@ void HypreSystem::build_ij_matrix(std::string matfile, int nfiles) {
 
   // read the files
   if (iproc_ == 0)
-     printf("%s : Reading %d HYPRE IJ Matrix files\n", __FUNCTION__, nfiles);
+    printf("%s : Reading %d HYPRE IJ Matrix files\n", __FUNCTION__, nfiles);
 
   HYPRE_Int ilower, iupper, jlower, jupper;
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
@@ -1134,7 +1164,8 @@ void HypreSystem::build_ij_vector(std::vector<std::string> &vecfiles,
     std::string vecfile = vecfiles[i];
 
     if (iproc_ == 0)
-       printf("%s : Reading %d HYPRE IJ Vector files %s\n", __FUNCTION__, nfiles, vecfile.c_str());
+      printf("%s : Reading %d HYPRE IJ Vector files %s\n", __FUNCTION__, nfiles,
+             vecfile.c_str());
 
     HYPRE_Int ilower, iupper;
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
@@ -1193,156 +1224,171 @@ void HypreSystem::build_ij_vector(std::vector<std::string> &vecfiles,
 }
 
 /********************************************************************************/
-/*                         Build 27 Pt Stencil                                  */
+/*                         Build 27 Pt Stencil */
 /********************************************************************************/
 #if defined(HYPER_USING_HIP)
 GPU_GLOBAL void
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
-fillGlobalRowIndices(HYPRE_BigInt n, HYPRE_BigInt iLower, int * row_ptr, HYPRE_BigInt * global_row_inds)
+fillGlobalRowIndices(HYPRE_BigInt n, HYPRE_BigInt iLower, int *row_ptr,
+                     HYPRE_BigInt *global_row_inds)
 #else
-fillGlobalRowIndices(HYPRE_Int n, HYPRE_Int iLower, int * row_ptr, HYPRE_Int * global_row_inds)
+fillGlobalRowIndices(HYPRE_Int n, HYPRE_Int iLower, int *row_ptr,
+                     HYPRE_Int *global_row_inds)
 #endif
 {
-   if (blockIdx.x<n)
-   {
-      int row_start = row_ptr[blockIdx.x];
-      int row_end   = row_ptr[blockIdx.x+1];
-      for (int i=threadIdx.x; i<row_end-row_start; i+=blockDim.x) {
+  if (blockIdx.x < n) {
+    int row_start = row_ptr[blockIdx.x];
+    int row_end = row_ptr[blockIdx.x + 1];
+    for (int i = threadIdx.x; i < row_end - row_start; i += blockDim.x) {
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
-         global_row_inds[row_start+i] = (HYPRE_BigInt)(blockIdx.x+iLower);
+      global_row_inds[row_start + i] = (HYPRE_BigInt)(blockIdx.x + iLower);
 #else
-         global_row_inds[row_start+i] = (HYPRE_Int)(blockIdx.x+iLower);
+      global_row_inds[row_start + i] = (HYPRE_Int)(blockIdx.x + iLower);
 #endif
-      }
-   }
-   return;
+    }
+  }
+  return;
 }
 #endif
 
 #if defined(HYPRE_USING_HIP)
 GPU_GLOBAL void
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
-fillGlobalColIndices(HYPRE_BigInt nnz, HYPRE_BigInt shift, int * col_inds, HYPRE_BigInt * global_col_inds)
+fillGlobalColIndices(HYPRE_BigInt nnz, HYPRE_BigInt shift, int *col_inds,
+                     HYPRE_BigInt *global_col_inds)
 #else
-fillGlobalColIndices(HYPRE_Int nnz, HYPRE_Int shift, int * col_inds, HYPRE_Int * global_col_inds)
+fillGlobalColIndices(HYPRE_Int nnz, HYPRE_Int shift, int *col_inds,
+                     HYPRE_Int *global_col_inds)
 #endif
 {
-   for (int tid = blockIdx.x*blockDim.x + threadIdx.x; tid<nnz; tid+=blockDim.x*gridDim.x)
-   {
+  for (int tid = blockIdx.x * blockDim.x + threadIdx.x; tid < nnz;
+       tid += blockDim.x * gridDim.x) {
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
-      global_col_inds[tid] = (HYPRE_BigInt) (col_inds[tid]+shift);
+    global_col_inds[tid] = (HYPRE_BigInt)(col_inds[tid] + shift);
 #else
-      global_col_inds[tid] = (HYPRE_Int) (col_inds[tid]+shift);
+    global_col_inds[tid] = (HYPRE_Int)(col_inds[tid] + shift);
 #endif
-   }
-   return;
+  }
+  return;
 }
 #endif
 
 #if (HYPRE_USING_HIP)
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
-void HypreSystem::validateDiagData(HYPRE_BigInt nnz, HYPRE_BigInt *drows, HYPRE_BigInt *dcols)
-{
-   std::vector<HYPRE_BigInt> hrows(nnz);
-   std::vector<HYPRE_BigInt> hcols(nnz);
-   HIP_CALL(hipMemcpy(hrows.data(), drows, nnz*sizeof(HYPRE_BigInt), hipMemcpyDeviceToHost));
-   HIP_CALL(hipMemcpy(hcols.data(), dcols, nnz*sizeof(HYPRE_BigInt), hipMemcpyDeviceToHost));
-   HYPRE_BigInt countr=0;
-   HYPRE_BigInt countc=0;
-   for (int i=0; i<nnz; ++i)
-   {
-      if (hrows[i]<iLower_ || hrows[i]>iUpper_)
-      {
-         countr++;
-      }
-      if (hcols[i]<iLower_ || hcols[i]>iUpper_)
-      {
-         countc++;
-      }
-   }
-   if (countr) printf("rank %d : Found %ld of %ld bad diag row indices\n", iproc_, countr, nnz);
-   if (countc) printf("rank %d : Found %ld of %ld bad diag col indices\n", iproc_, countc, nnz);
-   fflush(stdout);
-   return;
+void HypreSystem::validateDiagData(HYPRE_BigInt nnz, HYPRE_BigInt *drows,
+                                   HYPRE_BigInt *dcols) {
+  std::vector<HYPRE_BigInt> hrows(nnz);
+  std::vector<HYPRE_BigInt> hcols(nnz);
+  HIP_CALL(hipMemcpy(hrows.data(), drows, nnz * sizeof(HYPRE_BigInt),
+                     hipMemcpyDeviceToHost));
+  HIP_CALL(hipMemcpy(hcols.data(), dcols, nnz * sizeof(HYPRE_BigInt),
+                     hipMemcpyDeviceToHost));
+  HYPRE_BigInt countr = 0;
+  HYPRE_BigInt countc = 0;
+  for (int i = 0; i < nnz; ++i) {
+    if (hrows[i] < iLower_ || hrows[i] > iUpper_) {
+      countr++;
+    }
+    if (hcols[i] < iLower_ || hcols[i] > iUpper_) {
+      countc++;
+    }
+  }
+  if (countr)
+    printf("rank %d : Found %ld of %ld bad diag row indices\n", iproc_, countr,
+           nnz);
+  if (countc)
+    printf("rank %d : Found %ld of %ld bad diag col indices\n", iproc_, countc,
+           nnz);
+  fflush(stdout);
+  return;
 }
 #else
-void HypreSystem::validateDiagData(HYPRE_Int nnz, HYPRE_Int *drows, HYPRE_Int *dcols)
-{
-   std::vector<HYPRE_Int> hrows(nnz);
-   std::vector<HYPRE_Int> hcols(nnz);
-   HIP_CALL(hipMemcpy(hrows.data(), drows, nnz*sizeof(HYPRE_Int), hipMemcpyDeviceToHost));
-   HIP_CALL(hipMemcpy(hcols.data(), dcols, nnz*sizeof(HYPRE_Int), hipMemcpyDeviceToHost));
-   HYPRE_Int countr=0;
-   HYPRE_Int countc=0;
-   for (int i=0; i<nnz; ++i)
-   {
-      if (hrows[i]<iLower_ || hrows[i]>iUpper_)
-      {
-         countr++;
-      }
-      if (hcols[i]<iLower_ || hcols[i]>iUpper_)
-      {
-         countc++;
-      }
-   }
-   if (countr) printf("rank %d : Found %d of %d bad diag row indices\n", iproc_, countr, nnz);
-   if (countc) printf("rank %d : Found %d of %d bad diag col indices\n", iproc_, countc, nnz);
-   fflush(stdout);
-   return;
+void HypreSystem::validateDiagData(HYPRE_Int nnz, HYPRE_Int *drows,
+                                   HYPRE_Int *dcols) {
+  std::vector<HYPRE_Int> hrows(nnz);
+  std::vector<HYPRE_Int> hcols(nnz);
+  HIP_CALL(hipMemcpy(hrows.data(), drows, nnz * sizeof(HYPRE_Int),
+                     hipMemcpyDeviceToHost));
+  HIP_CALL(hipMemcpy(hcols.data(), dcols, nnz * sizeof(HYPRE_Int),
+                     hipMemcpyDeviceToHost));
+  HYPRE_Int countr = 0;
+  HYPRE_Int countc = 0;
+  for (int i = 0; i < nnz; ++i) {
+    if (hrows[i] < iLower_ || hrows[i] > iUpper_) {
+      countr++;
+    }
+    if (hcols[i] < iLower_ || hcols[i] > iUpper_) {
+      countc++;
+    }
+  }
+  if (countr)
+    printf("rank %d : Found %d of %d bad diag row indices\n", iproc_, countr,
+           nnz);
+  if (countc)
+    printf("rank %d : Found %d of %d bad diag col indices\n", iproc_, countc,
+           nnz);
+  fflush(stdout);
+  return;
 }
 #endif
 #endif
 
 #if defined(HYPRE_USING_HIP)
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
-void HypreSystem::validateOffdData(HYPRE_BigInt nnz, HYPRE_BigInt *drows, HYPRE_BigInt *dcols)
-{
-   std::vector<HYPRE_BigInt> hrows(nnz);
-   std::vector<HYPRE_BigInt> hcols(nnz);
-   HIP_CALL(hipMemcpy(hrows.data(), drows, nnz*sizeof(HYPRE_BigInt), hipMemcpyDeviceToHost));
-   HIP_CALL(hipMemcpy(hcols.data(), dcols, nnz*sizeof(HYPRE_BigInt), hipMemcpyDeviceToHost));
-   HYPRE_BigInt countr=0;
-   HYPRE_BigInt countc=0;
-   for (int i=0; i<nnz; ++i)
-   {
-      if (hrows[i]<iLower_ || hrows[i]>iUpper_)
-      {
-         countr++;
-      }
-      if (hcols[i]>=iLower_ && hcols[i]<=iUpper_)
-      {
-         countc++;
-      }
-   }
-   if (countr) printf("rank %d : Found %ld of %ld bad offd row indices\n", iproc_, countr, nnz);
-   if (countc) printf("rank %d : Found %ld of %ld bad offd col indices\n", iproc_, countc, nnz);
-   fflush(stdout);
-   return;
+void HypreSystem::validateOffdData(HYPRE_BigInt nnz, HYPRE_BigInt *drows,
+                                   HYPRE_BigInt *dcols) {
+  std::vector<HYPRE_BigInt> hrows(nnz);
+  std::vector<HYPRE_BigInt> hcols(nnz);
+  HIP_CALL(hipMemcpy(hrows.data(), drows, nnz * sizeof(HYPRE_BigInt),
+                     hipMemcpyDeviceToHost));
+  HIP_CALL(hipMemcpy(hcols.data(), dcols, nnz * sizeof(HYPRE_BigInt),
+                     hipMemcpyDeviceToHost));
+  HYPRE_BigInt countr = 0;
+  HYPRE_BigInt countc = 0;
+  for (int i = 0; i < nnz; ++i) {
+    if (hrows[i] < iLower_ || hrows[i] > iUpper_) {
+      countr++;
+    }
+    if (hcols[i] >= iLower_ && hcols[i] <= iUpper_) {
+      countc++;
+    }
+  }
+  if (countr)
+    printf("rank %d : Found %ld of %ld bad offd row indices\n", iproc_, countr,
+           nnz);
+  if (countc)
+    printf("rank %d : Found %ld of %ld bad offd col indices\n", iproc_, countc,
+           nnz);
+  fflush(stdout);
+  return;
 }
 #else
-void HypreSystem::validateOffdData(HYPRE_Int nnz, HYPRE_Int *drows, HYPRE_Int *dcols)
-{
-   std::vector<HYPRE_Int> hrows(nnz);
-   std::vector<HYPRE_Int> hcols(nnz);
-   HIP_CALL(hipMemcpy(hrows.data(), drows, nnz*sizeof(HYPRE_Int), hipMemcpyDeviceToHost));
-   HIP_CALL(hipMemcpy(hcols.data(), dcols, nnz*sizeof(HYPRE_Int), hipMemcpyDeviceToHost));
-   HYPRE_Int countr=0;
-   HYPRE_Int countc=0;
-   for (int i=0; i<nnz; ++i)
-   {
-      if (hrows[i]<iLower_ || hrows[i]>iUpper_)
-      {
-         countr++;
-      }
-      if (hcols[i]>=iLower_ && hcols[i]<=iUpper_)
-      {
-         countc++;
-      }
-   }
-   if (countr) printf("rank %d : Found %d of %d bad offd row indices\n", iproc_, countr, nnz);
-   if (countc) printf("rank %d : Found %d of %d bad offd col indices\n", iproc_, countc, nnz);
-   fflush(stdout);
-   return;
+void HypreSystem::validateOffdData(HYPRE_Int nnz, HYPRE_Int *drows,
+                                   HYPRE_Int *dcols) {
+  std::vector<HYPRE_Int> hrows(nnz);
+  std::vector<HYPRE_Int> hcols(nnz);
+  HIP_CALL(hipMemcpy(hrows.data(), drows, nnz * sizeof(HYPRE_Int),
+                     hipMemcpyDeviceToHost));
+  HIP_CALL(hipMemcpy(hcols.data(), dcols, nnz * sizeof(HYPRE_Int),
+                     hipMemcpyDeviceToHost));
+  HYPRE_Int countr = 0;
+  HYPRE_Int countc = 0;
+  for (int i = 0; i < nnz; ++i) {
+    if (hrows[i] < iLower_ || hrows[i] > iUpper_) {
+      countr++;
+    }
+    if (hcols[i] >= iLower_ && hcols[i] <= iUpper_) {
+      countc++;
+    }
+  }
+  if (countr)
+    printf("rank %d : Found %d of %d bad offd row indices\n", iproc_, countr,
+           nnz);
+  if (countc)
+    printf("rank %d : Found %d of %d bad offd col indices\n", iproc_, countc,
+           nnz);
+  fflush(stdout);
+  return;
 }
 #endif
 #endif
@@ -1369,26 +1415,17 @@ void HypreSystem::build_27pt_stencil() {
   int nproc_z;
 
   compute_3d_process_distribution(nproc_, nproc_x, nproc_y, nproc_z);
-  if(iproc_ == 0)
-  {
-     printf("\tProcess distribution: %d x %d x %d\n", nproc_x, nproc_y, nproc_z);
+  if (iproc_ == 0) {
+    printf("\tProcess distribution: %d x %d x %d\n", nproc_x, nproc_y, nproc_z);
   }
 
   // Generate problem
   Data data;
 
-  generate_3d_laplacian_hip(nx_,
-                            ny_,
-                            nz_,
-                            nproc_x,
-                            nproc_y,
-                            nproc_z,
-                            &comm_,
-                            iproc_,
-                            nproc_,
-                            &data);
+  generate_3d_laplacian_hip(nx_, ny_, nz_, nproc_x, nproc_y, nproc_z, &comm_,
+                            iproc_, nproc_, &data);
 
-  totalRows_ = M_ = N_ = nx_*ny_*nz_*nproc_;
+  totalRows_ = M_ = N_ = nx_ * ny_ * nz_ * nproc_;
 
   // generic method for IJ and MM
   init_row_decomposition();
@@ -1412,10 +1449,12 @@ void HypreSystem::build_27pt_stencil() {
   d_offd_cols_ = hypre_TAlloc(HYPRE_Int, data.offd_nnz, HYPRE_MEMORY_DEVICE);
 #endif
 
-  fillGlobalRowIndices<<<numRows_,128>>>(numRows_, iLower_, data.diagonal_csr_row_ptr, d_rows_);
+  fillGlobalRowIndices<<<numRows_, 128>>>(numRows_, iLower_,
+                                          data.diagonal_csr_row_ptr, d_rows_);
   HIP_CALL(hipGetLastError());
 
-  fillGlobalRowIndices<<<numRows_,128>>>(numRows_, iLower_, data.offd_csr_row_ptr, d_offd_rows_);
+  fillGlobalRowIndices<<<numRows_, 128>>>(numRows_, iLower_,
+                                          data.offd_csr_row_ptr, d_offd_rows_);
   HIP_CALL(hipGetLastError());
 
   /* transform column indices to global */
@@ -1425,27 +1464,30 @@ void HypreSystem::build_27pt_stencil() {
   hipGetDeviceProperties(&prop, device);
   int CUcount = prop.multiProcessorCount;
 
-  fillGlobalColIndices<<<CUcount*4,256>>>(data.diagonal_nnz, iLower_, data.diagonal_csr_col_ind, d_cols_);
+  fillGlobalColIndices<<<CUcount * 4, 256>>>(
+      data.diagonal_nnz, iLower_, data.diagonal_csr_col_ind, d_cols_);
   HIP_CALL(hipGetLastError());
-  fillGlobalColIndices<<<CUcount*4,256>>>(data.offd_nnz, ((iproc_==0) ? iUpper_+1 : 0), data.offd_csr_col_ind, d_offd_cols_);
+  fillGlobalColIndices<<<CUcount * 4, 256>>>(
+      data.offd_nnz, ((iproc_ == 0) ? iUpper_ + 1 : 0), data.offd_csr_col_ind,
+      d_offd_cols_);
   HIP_CALL(hipGetLastError());
 
   /* Validate data */
-  //validateDiagData(data.diagonal_nnz, d_rows_, d_cols_);
-  //validateOffdData(data.offd_nnz, d_offd_rows_, d_offd_cols_);
+  // validateDiagData(data.diagonal_nnz, d_rows_, d_cols_);
+  // validateOffdData(data.offd_nnz, d_offd_rows_, d_offd_cols_);
 
   /********************************************/
   /* Call Hypre Matrix Assembly Routines      */
   /********************************************/
 
   /* Set matrix diagonal values */
-  HYPRE_IJMatrixSetValues2(mat_, data.diagonal_nnz,
-                           NULL, d_rows_, NULL, d_cols_, data.diagonal_csr_val);
+  HYPRE_IJMatrixSetValues2(mat_, data.diagonal_nnz, NULL, d_rows_, NULL,
+                           d_cols_, data.diagonal_csr_val);
   HIP_CALL(hipGetLastError());
 
   /* Set matrix off diagonal values */
-  HYPRE_IJMatrixAddToValues2(mat_, data.offd_nnz,
-                             NULL, d_offd_rows_, NULL, d_offd_cols_, data.offd_csr_val);
+  HYPRE_IJMatrixAddToValues2(mat_, data.offd_nnz, NULL, d_offd_rows_, NULL,
+                             d_offd_cols_, data.offd_csr_val);
   HIP_CALL(hipGetLastError());
 
   /********************************************/
@@ -1458,14 +1500,15 @@ void HypreSystem::build_27pt_stencil() {
     v = rhs_[0];
     HYPRE_IJVectorSetComponent(v, 0);
   } else {
-     /* Throw exception */
+    /* Throw exception */
   }
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
   d_vector_indices_ = hypre_TAlloc(HYPRE_BigInt, numRows_, HYPRE_MEMORY_DEVICE);
 #else
   d_vector_indices_ = hypre_TAlloc(HYPRE_Int, numRows_, HYPRE_MEMORY_DEVICE);
 #endif
-  thrust::sequence(thrust::device, d_vector_indices_, d_vector_indices_ + numRows_, iLower_);
+  thrust::sequence(thrust::device, d_vector_indices_,
+                   d_vector_indices_ + numRows_, iLower_);
   HIP_CALL(hipGetLastError());
 
   HYPRE_IJVectorSetValues(v, numRows_, d_vector_indices_, data.rhs_val);
@@ -1482,7 +1525,7 @@ void HypreSystem::build_27pt_stencil() {
 }
 #endif
 /********************************************************************************/
-/*                          Matrix Market Format                                */
+/*                          Matrix Market Format */
 /********************************************************************************/
 
 void HypreSystem::load_matrix_market() {
@@ -1581,9 +1624,10 @@ void HypreSystem::determine_mm_system_sizes(std::string matfile) {
  *
  *******************/
 void HypreSystem::build_mm_matrix(std::string matfile) {
-   MPI_Barrier(comm_);
-   if (iproc_ == 0)
-       printf("%s : Reading from %s into HYPRE_IJMatrix\n", __FUNCTION__, matfile.c_str());
+  MPI_Barrier(comm_);
+  if (iproc_ == 0)
+    printf("%s : Reading from %s into HYPRE_IJMatrix\n", __FUNCTION__,
+           matfile.c_str());
 
   auto start = std::chrono::system_clock::now();
 
@@ -1612,35 +1656,31 @@ void HypreSystem::build_mm_matrix(std::string matfile) {
   if (err != 0)
     throw std::runtime_error("Cannot read matrix sizes in file: " + matfile);
 
-
   fclose(fh);
   int fd = open(matfile.c_str(), O_RDONLY);
   struct stat s;
   int status = fstat(fd, &s);
   int64_t size = s.st_size;
-  char * f = (char *) mmap (0, size, PROT_READ, MAP_FILE|MAP_PRIVATE, fd, 0);
+  char *f = (char *)mmap(0, size, PROT_READ, MAP_FILE | MAP_PRIVATE, fd, 0);
   std::string all_lines(f);
   std::string line;
-  int64_t found=0, pos=-1, rsize=0, len=0;
-  bool foundHeader=false;
+  int64_t found = 0, pos = -1, rsize = 0, len = 0;
+  bool foundHeader = false;
   rows_.resize(0);
   cols_.resize(0);
   vals_.resize(0);
-  while (rsize<size)
-  {
-    found = all_lines.find('\n', pos+1);
-    int64_t len = found-pos;
-    rsize+=len;
-    line = all_lines.substr(pos+1, len);
-    pos=found;
-    if (line.find("%",0)==0)
-    {
-      foundHeader=true;
+  while (rsize < size) {
+    found = all_lines.find('\n', pos + 1);
+    int64_t len = found - pos;
+    rsize += len;
+    line = all_lines.substr(pos + 1, len);
+    pos = found;
+    if (line.find("%", 0) == 0) {
+      foundHeader = true;
       continue;
     }
-    if (foundHeader)
-    {
-      foundHeader=false;
+    if (foundHeader) {
+      foundHeader = false;
       continue;
     }
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
@@ -1651,7 +1691,7 @@ void HypreSystem::build_mm_matrix(std::string matfile) {
 
     irow--;
     icol--;
-    
+
     if (irow >= iLower_ && irow <= iUpper_) {
       rows_.push_back(irow);
       cols_.push_back(icol);
@@ -1685,7 +1725,8 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
   for (int j = 0; j < numComps_; ++j) {
     std::string mmfile = mmfiles[j];
     if (iproc_ == 0)
-       printf("%s : Reading from %s into HYPRE_IJVector\n", __FUNCTION__, mmfile.c_str());
+      printf("%s : Reading from %s into HYPRE_IJVector\n", __FUNCTION__,
+             mmfile.c_str());
 
     FILE *fh;
     MM_typecode matcode;
@@ -1717,46 +1758,43 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
     struct stat s;
     int status = fstat(fd, &s);
     int64_t size = s.st_size;
-    char * f = (char *) mmap (0, size, PROT_READ, MAP_FILE|MAP_PRIVATE, fd, 0);
+    char *f = (char *)mmap(0, size, PROT_READ, MAP_FILE | MAP_PRIVATE, fd, 0);
     std::string all_lines(f);
     std::string line;
-    int64_t found=0, pos=-1, rsize=0, len=0, i=0;
-    bool foundHeader=false;
+    int64_t found = 0, pos = -1, rsize = 0, len = 0, i = 0;
+    bool foundHeader = false;
     vector_indices_.resize(0);
     vector_values_.resize(0);
 
-    while (rsize<size)
-    {
-      found = all_lines.find('\n', pos+1);
-      int64_t len = found-pos;
-      rsize+=len;
-      line = all_lines.substr(pos+1, len);
-      pos=found;
-      if (line.find("%",0)==0)
-      {
-   foundHeader=true;
-   continue;
+    while (rsize < size) {
+      found = all_lines.find('\n', pos + 1);
+      int64_t len = found - pos;
+      rsize += len;
+      line = all_lines.substr(pos + 1, len);
+      pos = found;
+      if (line.find("%", 0) == 0) {
+        foundHeader = true;
+        continue;
       }
-      if (foundHeader)
-      {
-   foundHeader=false;
-   continue;
+      if (foundHeader) {
+        foundHeader = false;
+        continue;
       }
       if (i >= iLower_ && i <= iUpper_) {
-   sscanf(line.c_str(), "%lf", &value);
-   vector_values_.push_back(value);
+        sscanf(line.c_str(), "%lf", &value);
+        vector_values_.push_back(value);
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
-   vector_indices_.push_back((HYPRE_BigInt)i);
+        vector_indices_.push_back((HYPRE_BigInt)i);
 #else
-   vector_indices_.push_back(i);
+        vector_indices_.push_back(i);
 #endif
       }
       i++;
     }
-    
+
     int unmap_result = munmap(f, size);
     close(fd);
-    
+
     /* build the vector */
     hypre_vector_set_values(vec, j);
   }
