@@ -57,6 +57,8 @@ void HypreSystem::setup_precon_and_solver() {
 
   if (preconditioner == "boomeramg") {
     setup_boomeramg_precond();
+  } else if (preconditioner == "ilu") {
+    setup_ilu_precond();
   } else if (preconditioner == "none") {
     usePrecond_ = false;
   } else {
@@ -286,6 +288,28 @@ void HypreSystem::setup_boomeramg_precond() {
   precondSetupPtr_ = &HYPRE_BoomerAMGSetup;
   precondSolvePtr_ = &HYPRE_BoomerAMGSolve;
   precondDestroyPtr_ = &HYPRE_BoomerAMGDestroy;
+}
+
+void HypreSystem::setup_ilu_precond() {
+  YAML::Node node = inpfile_["ilu_preconditioner_settings"];
+
+  HYPRE_ILUCreate(&precond_);
+  HYPRE_ILUSetType(precond_, get_optional(node, "ilu_type", 0));
+  HYPRE_ILUSetMaxIter(precond_, get_optional(node, "max_iterations", 1));
+  HYPRE_ILUSetPrintLevel(precond_, get_optional(node, "print_level", 1));
+  HYPRE_ILUSetTol(precond_, get_optional(node, "tolerance", 0.0));
+
+  HYPRE_ILUSetIterativeSetupType(precond_,
+                                 get_optional(node, "algorithm_type", 0));
+  HYPRE_ILUSetIterativeSetupMaxIter(
+      precond_, get_optional(node, "max_ilu_iterations", 1));
+  HYPRE_ILUSetIterativeSetupTolerance(
+      precond_, get_optional(node, "iterative_ilu_tolerance", 1e-5));
+  HYPRE_ILUSetTriSolve(precond_, get_optional(node, "trisolve", 1));
+
+  precondSetupPtr_ = &HYPRE_ILUSetup;
+  precondSolvePtr_ = &HYPRE_ILUSolve;
+  precondDestroyPtr_ = &HYPRE_ILUDestroy;
 }
 
 void HypreSystem::setup_cogmres() {
