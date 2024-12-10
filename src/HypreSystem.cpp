@@ -1,7 +1,7 @@
 #include "HypreSystem.h"
 #include "GpuQualifiers.h"
 
-#if defined (HYPER_USING_HIP)
+#if defined (HYPRE_USING_HIP)
 #include "laplace_3d_weak_scaling.hpp"
 #endif
 
@@ -1195,7 +1195,7 @@ void HypreSystem::build_ij_vector(std::vector<std::string> &vecfiles,
 /********************************************************************************/
 /*                         Build 27 Pt Stencil                                  */
 /********************************************************************************/
-#if defined(HYPER_USING_HIP)
+#if defined(HYPRE_USING_HIP)
 GPU_GLOBAL void
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
 fillGlobalRowIndices(HYPRE_BigInt n, HYPRE_BigInt iLower, int * row_ptr, HYPRE_BigInt * global_row_inds)
