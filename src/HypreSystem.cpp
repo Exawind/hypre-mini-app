@@ -57,6 +57,9 @@ void HypreSystem::setup_precon_and_solver() {
 
   if (preconditioner == "boomeramg") {
     setup_boomeramg_precond();
+  }
+  else if (preconditioner == "ilu"){
+    setup_ilu_precond(); 
   } else if (preconditioner == "none") {
     usePrecond_ = false;
   } else {
@@ -75,6 +78,8 @@ void HypreSystem::setup_precon_and_solver() {
     setup_boomeramg_solver();
   } else if (!method.compare("cogmres")) {
     setup_cogmres();
+  } else if (!method.compare("ilu")) {
+    setup_ilu();
   } else {
     throw std::runtime_error("Invalid option for solver method provided: " +
                              method);
@@ -286,6 +291,28 @@ void HypreSystem::setup_boomeramg_precond() {
   precondDestroyPtr_ = &HYPRE_BoomerAMGDestroy;
 }
 
+void HypreSystem::setup_ilu_precond() {
+  YAML::Node node = inpfile_["ilu_preconditioner_settings"];
+
+  HYPRE_ILUCreate(&precond_);
+  HYPRE_ILUSetType(precond_, get_optional(node, "ilu_type", 0));
+  HYPRE_ILUSetMaxIter(precond_, get_optional(node, "max_iterations", 1));
+  HYPRE_ILUSetPrintLevel(precond_, get_optional(node, "print_level", 1));
+  HYPRE_ILUSetTol(precond_, get_optional(node, "tolerance", 0.0));
+
+  HYPRE_ILUSetIterativeSetupType(precond_,
+                                 get_optional(node, "algorithm_type", 0));
+  HYPRE_ILUSetIterativeSetupMaxIter(
+      precond_, get_optional(node, "max_ilu_iterations", 1));
+  HYPRE_ILUSetIterativeSetupTolerance(
+      precond_, get_optional(node, "iterative_ilu_tolerance", 1e-5));
+  HYPRE_ILUSetTriSolve(precond_, get_optional(node, "trisolve", 1));
+
+  precondSetupPtr_ = &HYPRE_ILUSetup;
+  precondSolvePtr_ = &HYPRE_ILUSolve;
+  precondDestroyPtr_ = &HYPRE_ILUDestroy;
+}
+
 void HypreSystem::setup_cogmres() {
   YAML::Node node = inpfile_["solver_settings"];
 
@@ -369,6 +396,27 @@ void HypreSystem::setup_cg() {
   solverSetupPtr_ = &HYPRE_ParCSRPCGSetup;
   solverPrecondPtr_ = &HYPRE_ParCSRPCGSetPrecond;
   solverSolvePtr_ = &HYPRE_ParCSRPCGSolve;
+}
+
+void HypreSystem::setup_ilu() {
+  YAML::Node node = inpfile_["solver_settings"];
+  HYPRE_ILUCreate(&solver_);
+  HYPRE_ILUSetType(solver_, get_optional(node, "ilu_type", 0));
+  HYPRE_ILUSetMaxIter(solver_, get_optional(node, "max_iterations", 20));
+  HYPRE_ILUSetPrintLevel(solver_, get_optional(node, "print_level", 4));
+
+  HYPRE_ILUSetIterativeSetupType(solver_,
+                                 get_optional(node, "algorithm_type", 0));
+  HYPRE_ILUSetIterativeSetupMaxIter(
+      solver_, get_optional(node, "max_ilu_iterations", 1));
+  HYPRE_ILUSetIterativeSetupTolerance(
+      solver_, get_optional(node, "iterative_ilu_tolerance", 1e-5));
+  HYPRE_ILUSetTriSolve(solver_, get_optional(node, "trisolve", 1));
+
+  solverDestroyPtr_ = &HYPRE_ILUDestroy;
+  solverSetupPtr_ = &HYPRE_ILUSetup;
+  solverPrecondPtr_ = nullptr;
+  solverSolvePtr_ = &HYPRE_ILUSolve;
 }
 
 void HypreSystem::destroy_system() {
