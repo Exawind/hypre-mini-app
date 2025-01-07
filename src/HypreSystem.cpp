@@ -297,16 +297,37 @@ void HypreSystem::setup_ilu_precond() {
   HYPRE_ILUCreate(&precond_);
   HYPRE_ILUSetType(precond_, get_optional(node, "ilu_type", 0));
   HYPRE_ILUSetMaxIter(precond_, get_optional(node, "max_iterations", 1));
-  HYPRE_ILUSetPrintLevel(precond_, get_optional(node, "print_level", 1));
   HYPRE_ILUSetTol(precond_, get_optional(node, "tolerance", 0.0));
+  HYPRE_ILUSetLocalReordering(precond_, get_optional(node, "local_reordering", 0));
+  HYPRE_ILUSetPrintLevel(precond_, get_optional(node, "print_level", 1));
 
+  // ILUK parameters
+  HYPRE_ILUSetLevelOfFill(precond_, get_optional(node, "fill", 0));
+
+  // ILUT parameters
+  HYPRE_ILUSetMaxNnzPerRow(precond_,get_optional(node, "max_nnz_per_row", 1000));
+  HYPRE_ILUSetDropThreshold(precond_,get_optional(node, "drop_threshold", 1.0e-2));
+
+  // 0 : Non-iterative algorithm (default)
+  // 1 : Asynchronous with in-place storage
+  // 2 : Asynchronous with explicit storage splitting
+  // 3 : Synchronous with explicit storage splitting
+  // 4 : Semi-synchronous with explicit storage splitting
+  // Iterative ILU is available only for zero fill-in and it depends on rocSparse
   HYPRE_ILUSetIterativeSetupType(precond_,
                                  get_optional(node, "algorithm_type", 0));
   HYPRE_ILUSetIterativeSetupMaxIter(
       precond_, get_optional(node, "max_ilu_iterations", 1));
   HYPRE_ILUSetIterativeSetupTolerance(
       precond_, get_optional(node, "iterative_ilu_tolerance", 1e-5));
+
+  // 0: iterative
+  // 1: direct (default)
   HYPRE_ILUSetTriSolve(precond_, get_optional(node, "trisolve", 1));
+
+  // Jacobi iterations for lower and upper triangular solves
+  HYPRE_ILUSetLowerJacobiIters(precond_,get_optional(node, "lower_jacobi_iters", 5));
+  HYPRE_ILUSetUpperJacobiIters(precond_,get_optional(node, "upper_jacobi_iters", 5));
 
   precondSetupPtr_ = &HYPRE_ILUSetup;
   precondSolvePtr_ = &HYPRE_ILUSolve;
@@ -403,15 +424,35 @@ void HypreSystem::setup_ilu() {
   HYPRE_ILUCreate(&solver_);
   HYPRE_ILUSetType(solver_, get_optional(node, "ilu_type", 0));
   HYPRE_ILUSetMaxIter(solver_, get_optional(node, "max_iterations", 20));
+  HYPRE_ILUSetTol(solver_, get_optional(node, "tolerance", 0.0));
+  HYPRE_ILUSetLocalReordering(solver_, get_optional(node,"local_reordering", 0));
   HYPRE_ILUSetPrintLevel(solver_, get_optional(node, "print_level", 4));
 
+  // ILUK parameters
+  HYPRE_ILUSetLevelOfFill(solver_, get_optional(node, "fill", 0));
+
+  // ILUT parameters
+  HYPRE_ILUSetMaxNnzPerRow(solver_,get_optional(node, "max_nnz_per_row", 1000));
+  HYPRE_ILUSetDropThreshold(solver_,get_optional(node, "drop_threshold", 1.0e-2));
+
+  // 0 : Non-iterative algorithm (default)
+  // 1 : Asynchronous with in-place storage
+  // 2 : Asynchronous with explicit storage splitting
+  // 3 : Synchronous with explicit storage splitting
+  // 4 : Semi-synchronous with explicit storage splitting
+  // Iterative ILU is available only for zero fill-in and it depends on rocSparse
   HYPRE_ILUSetIterativeSetupType(solver_,
                                  get_optional(node, "algorithm_type", 0));
   HYPRE_ILUSetIterativeSetupMaxIter(
       solver_, get_optional(node, "max_ilu_iterations", 1));
   HYPRE_ILUSetIterativeSetupTolerance(
       solver_, get_optional(node, "iterative_ilu_tolerance", 1e-5));
+  // 0: iterative
+  // 1: direct (default)
   HYPRE_ILUSetTriSolve(solver_, get_optional(node, "trisolve", 1));
+  // Jacobi iterations for lower and upper triangular solves
+  HYPRE_ILUSetLowerJacobiIters(solver_, get_optional(node, "lower_jacobi_iters", 5));
+  HYPRE_ILUSetUpperJacobiIters(solver_, get_optional(node, "upper_jacobi_iters", 5));
 
   solverDestroyPtr_ = &HYPRE_ILUDestroy;
   solverSetupPtr_ = &HYPRE_ILUSetup;
