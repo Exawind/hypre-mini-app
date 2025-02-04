@@ -157,6 +157,11 @@ private:
   void setup_bicg();
   void setup_cg();
 
+  //! Setup ILU
+  void setup_ilu_precond();
+
+  void setup_ilu();
+
   //! MPI Communicator object
   MPI_Comm comm_;
 
