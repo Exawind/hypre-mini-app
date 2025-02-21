@@ -289,10 +289,10 @@ void HypreSystem::setup_boomeramg_precond() {
   HYPRE_BoomerAMGSetILUIterSetupOption(precond_, iterative_ilu_setup_option);
   }
 
-  if (node["max_iterative_ilu_iterations"]) {
-  int max_iterative_ilu_iterations = node["max_iterative_ilu_iterations"].as<int>();
+  if (node["iterative_ilu_max_iterations"]) {
+  int max_iterative_ilu_iterations = node["iterative_ilu_max_iterations"].as<int>();
   HYPRE_BoomerAMGSetILUIterSetupMaxIter(
-      precond_, get_optional(node, "max_iterative_ilu_iterations", 1));
+      precond_, get_optional(node, "iterative_ilu_max_iterations", 1));
   }
 
   if (node["iterative_ilu_tolerance"]) {
@@ -352,7 +352,7 @@ void HypreSystem::setup_ilu_precond() {
                                  get_optional(node, "iterative_algorithm_type", 0));
   HYPRE_ILUSetIterativeSetupOption(precond_, get_optional(node, "iterative_setup_option", 2));
   HYPRE_ILUSetIterativeSetupMaxIter(
-      precond_, get_optional(node, "max_iterative_ilu_iterations", 1));
+      precond_, get_optional(node, "iterative_ilu_max_iterations", 1));
   HYPRE_ILUSetIterativeSetupTolerance(
       precond_, get_optional(node, "iterative_ilu_tolerance", 1e-5));
 
@@ -480,7 +480,7 @@ void HypreSystem::setup_ilu() {
                                  get_optional(node, "iterative_algorithm_type", 0));
   HYPRE_ILUSetIterativeSetupOption(solver_, get_optional(node, "iterative_setup_option", 2));
   HYPRE_ILUSetIterativeSetupMaxIter(
-      solver_, get_optional(node, "max_iterative_ilu_iterations", 1));
+      solver_, get_optional(node, "iterative_ilu_max_iterations", 1));
   HYPRE_ILUSetIterativeSetupTolerance(
       solver_, get_optional(node, "iterative_ilu_tolerance", 1e-5));
   // 0: iterative
