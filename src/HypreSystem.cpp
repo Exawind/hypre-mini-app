@@ -316,6 +316,7 @@ void HypreSystem::setup_ilu_precond() {
   // Iterative ILU is available only for zero fill-in and it depends on rocSparse
   HYPRE_ILUSetIterativeSetupType(precond_,
                                  get_optional(node, "algorithm_type", 0));
+  HYPRE_ILUSetIterativeSetupOption(precond_, get_optional(node, "setup_option", 2));
   HYPRE_ILUSetIterativeSetupMaxIter(
       precond_, get_optional(node, "max_ilu_iterations", 1));
   HYPRE_ILUSetIterativeSetupTolerance(
@@ -443,6 +444,7 @@ void HypreSystem::setup_ilu() {
   // Iterative ILU is available only for zero fill-in and it depends on rocSparse
   HYPRE_ILUSetIterativeSetupType(solver_,
                                  get_optional(node, "algorithm_type", 0));
+  HYPRE_ILUSetIterativeSetupOption(solver_, get_optional(node, "setup_option", 2));
   HYPRE_ILUSetIterativeSetupMaxIter(
       solver_, get_optional(node, "max_ilu_iterations", 1));
   HYPRE_ILUSetIterativeSetupTolerance(
