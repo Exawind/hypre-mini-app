@@ -272,6 +272,40 @@ void HypreSystem::setup_boomeramg_precond() {
     double ilu_drop_tol = node["ilu_drop_tol"].as<double>();
     HYPRE_BoomerAMGSetILUDroptol(precond_, ilu_drop_tol);
   }
+
+  if (node["iterative_ilu_algorithm_type"]) {
+  // 0 : Non-iterative algorithm (default)
+  // 1 : Asynchronous with in-place storage
+  // 2 : Asynchronous with explicit storage splitting
+  // 3 : Synchronous with explicit storage splitting
+  // 4 : Semi-synchronous with explicit storage splitting
+  // Iterative ILU is available only for zero fill-in and it depends on rocSparse
+  int iterative_ilu_algorithm_type = node["iterative_ilu_algorithm_type"].as<int>();
+  HYPRE_BoomerAMGSetILUIterSetupType(precond_, iterative_ilu_algorithm_type);
+  }
+
+  if (node["iterative_ilu_setup_option"]) {
+  int iterative_ilu_setup_option = node["iterative_ilu_setup_option"].as<int>();
+  HYPRE_BoomerAMGSetILUIterSetupOption(precond_, iterative_ilu_setup_option);
+  }
+
+  if (node["iterative_ilu_max_iterations"]) {
+  int max_iterative_ilu_iterations = node["iterative_ilu_max_iterations"].as<int>();
+  HYPRE_BoomerAMGSetILUIterSetupMaxIter(
+      precond_, get_optional(node, "iterative_ilu_max_iterations", 1));
+  }
+
+  if (node["iterative_ilu_tolerance"]) {
+  double iterative_ilu_tolerance = node["iterative_ilu_tolerance"].as<double>();
+  HYPRE_BoomerAMGSetILUIterSetupTolerance(
+      precond_, iterative_ilu_tolerance);
+  }
+
+  // 0: iterative
+  // 1: direct (default)
+  HYPRE_ILUSetTriSolve(precond_, get_optional(node, "trisolve", 1));
+
+
   if (node["ilu_tri_solve"]) {
     int ilu_tri_solve = node["ilu_tri_solve"].as<int>();
     HYPRE_BoomerAMGSetILUTriSolve(precond_, ilu_tri_solve);
@@ -315,9 +349,10 @@ void HypreSystem::setup_ilu_precond() {
   // 4 : Semi-synchronous with explicit storage splitting
   // Iterative ILU is available only for zero fill-in and it depends on rocSparse
   HYPRE_ILUSetIterativeSetupType(precond_,
-                                 get_optional(node, "algorithm_type", 0));
+                                 get_optional(node, "iterative_algorithm_type", 0));
+  HYPRE_ILUSetIterativeSetupOption(precond_, get_optional(node, "iterative_setup_option", 2));
   HYPRE_ILUSetIterativeSetupMaxIter(
-      precond_, get_optional(node, "max_ilu_iterations", 1));
+      precond_, get_optional(node, "iterative_ilu_max_iterations", 1));
   HYPRE_ILUSetIterativeSetupTolerance(
       precond_, get_optional(node, "iterative_ilu_tolerance", 1e-5));
 
@@ -442,9 +477,10 @@ void HypreSystem::setup_ilu() {
   // 4 : Semi-synchronous with explicit storage splitting
   // Iterative ILU is available only for zero fill-in and it depends on rocSparse
   HYPRE_ILUSetIterativeSetupType(solver_,
-                                 get_optional(node, "algorithm_type", 0));
+                                 get_optional(node, "iterative_algorithm_type", 0));
+  HYPRE_ILUSetIterativeSetupOption(solver_, get_optional(node, "iterative_setup_option", 2));
   HYPRE_ILUSetIterativeSetupMaxIter(
-      solver_, get_optional(node, "max_ilu_iterations", 1));
+      solver_, get_optional(node, "iterative_ilu_max_iterations", 1));
   HYPRE_ILUSetIterativeSetupTolerance(
       solver_, get_optional(node, "iterative_ilu_tolerance", 1e-5));
   // 0: iterative
