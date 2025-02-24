@@ -290,6 +290,7 @@ private:
   bool outputSolution_{false};
   bool usePrecond_{true};
   bool writeAmgMatrices_{false};
+  bool complexNumbers_{false};
   double atol_{1.e-8};
   double rtol_{1.e-6};
 };

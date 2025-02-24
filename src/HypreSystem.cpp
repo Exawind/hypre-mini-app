@@ -44,6 +44,9 @@ throw std::runtime_error("Cannot use build_27pt_stencil() without Hypre HIP supp
     outputSystem_ = linsys["write_outputs"].as<bool>();
   if (linsys["write_solution"])
     outputSolution_ = linsys["write_solution"].as<bool>();
+  if(linsys["complex_numbers"])
+    complexNumbers_ = linsys["complex_numbers"].as<bool>();
+    
 }
 
 void HypreSystem::setup_precon_and_solver() {
