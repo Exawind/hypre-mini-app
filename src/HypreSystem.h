@@ -219,9 +219,11 @@ private:
 #endif
 
   std::vector<double> vals_;
+  std::vector<double> imag_vals_;
   HYPRE_Complex *d_vals_=NULL;
 
   std::vector<double> vector_values_;
+  std::vector<double> imag_vector_values_;
   HYPRE_Complex *d_vector_vals_=NULL;
 
   //! Timers

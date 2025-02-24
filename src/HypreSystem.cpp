@@ -1731,7 +1731,7 @@ void HypreSystem::build_mm_matrix(std::string matfile) {
 #else
   HYPRE_Int irow, icol;
 #endif
-  double value;
+  double value, imag_value;
 
   if ((fh = fopen(matfile.c_str(), "rt")) == NULL) {
     throw std::runtime_error("Cannot open matrix file: " + matfile);
@@ -1779,9 +1779,19 @@ void HypreSystem::build_mm_matrix(std::string matfile) {
       continue;
     }
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
+    if(!complexNumbers_){
     sscanf(line.c_str(), "%lld %lld %lf", &irow, &icol, &value);
+    }
+    else{
+    sscanf(line.c_str(), "%lld %lld %lf %lf", &irow, &icol, &value, &imag_value);
+    }
 #else
+    if(!complexNumbers_){
     sscanf(line.c_str(), "%d %d %lf", &irow, &icol, &value);
+    }
+    else{
+    sscanf(line.c_str(), "%d %d %lf %lf", &irow, &icol, &value, &imag_value); 
+    }
 #endif
 
     irow--;
@@ -1791,6 +1801,7 @@ void HypreSystem::build_mm_matrix(std::string matfile) {
       rows_.push_back(irow);
       cols_.push_back(icol);
       vals_.push_back(value);
+      if(complexNumbers_) imag_vals_.push_back(imag_value);
     }
   }
 
