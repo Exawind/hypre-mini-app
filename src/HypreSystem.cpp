@@ -1691,9 +1691,16 @@ void HypreSystem::determine_mm_system_sizes(std::string matfile) {
   if (err != 0)
     throw std::runtime_error("Cannot read matrix sizes in file: " + matfile);
 
+  if(!complexNumbers_) {
   totalRows_ = M_ = msize;
   N_ = nsize;
   nnz_ = nnz;
+  }
+  else {
+  totalRows_ = M_ = 2 * msize;
+  N_ = 2 * nsize;
+  nnz_ = 2 * nnz;
+  }
 
   MPI_Barrier(comm_);
   auto stop = std::chrono::system_clock::now();
