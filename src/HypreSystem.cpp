@@ -1801,7 +1801,6 @@ void HypreSystem::build_mm_matrix(std::string matfile) {
     iLo_check=iLower_/2;
     iUp_check=(iUpper_-1)/2;
     }
- 
     if (irow >= iLo_check && irow <= iUp_check) {
       if(!complexNumbers_){
       rows_.push_back(irow);
@@ -1926,6 +1925,11 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
          // Real vector
          sscanf(line.c_str(), "%lf", &value);
          vector_values_.push_back(value);
+#if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
+         vector_indices_.push_back((HYPRE_BigInt)i);
+#else
+         vector_indices_.push_back(i);
+#endif
          }
          else{
          // Complex vector
@@ -1934,15 +1938,6 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
          vector_values_.push_back(value);
          // Imaginary part
          vector_values_.push_back(imag_value);
-         }
-         if(!complexNumbers_){
-#if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
-         vector_indices_.push_back((HYPRE_BigInt)i);
-#else
-         vector_indices_.push_back(i);
-#endif
-         }
-	 else{
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
          vector_indices_.push_back((HYPRE_BigInt)i);
          vector_indices_.push_back((HYPRE_BigInt)(i+1));
@@ -1950,7 +1945,7 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
          vector_indices_.push_back(i);
          vector_indices_.push_back(i+1);
 #endif
-	 }
+         }
       }
       i++;
       // Increment once more for the imaginary part
