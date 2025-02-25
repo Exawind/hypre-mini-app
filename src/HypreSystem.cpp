@@ -1191,9 +1191,9 @@ void HypreSystem::build_ij_matrix(std::string matfile, int nfiles) {
 
   HYPRE_Int ilower, iupper, jlower, jupper;
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
-  HYPRE_BigInt irow, icol;
+  HYPRE_BigInt irow, icol, ilo_check, iup_check;
 #else
-  HYPRE_Int irow, icol;
+  HYPRE_Int irow, icol, ilo_check, iup_check;
 #endif
   double value;
 
@@ -1727,9 +1727,9 @@ void HypreSystem::build_mm_matrix(std::string matfile) {
   int err;
   int msize, nsize, nnz;
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
-  HYPRE_BigInt irow, icol;
+  HYPRE_BigInt irow, icol, iLo_check, iUp_check;
 #else
-  HYPRE_Int irow, icol;
+  HYPRE_Int irow, icol, iLo_check, iUp_check;
 #endif
   double value, imag_value;
 
@@ -1796,12 +1796,43 @@ void HypreSystem::build_mm_matrix(std::string matfile) {
 
     irow--;
     icol--;
-    
-    if (irow >= iLower_ && irow <= iUpper_) {
+    iLo_check=iLower_;
+    iUp_check=iUpper_;
+    if(complexNumbers_){
+    iLo_check=iLower_/2;
+    iUp_check=(iUpper_-1)/2;
+    }
+ 
+    if (irow >= iLo_check && irow <= iUp_check) {
+      if(!complexNumbers_){
       rows_.push_back(irow);
       cols_.push_back(icol);
       vals_.push_back(value);
-      if(complexNumbers_) imag_vals_.push_back(imag_value);
+      }
+      else{
+      // Converting a complex matrix to a real matrix
+      // while doubling the number of degrees
+      // of freedom
+      //            |a -b|
+      // |a+ i b| = |    |
+      //            |b  a|
+      // 11
+      rows_.push_back(2 * irow + 0);
+      cols_.push_back(2 * icol + 0);
+      vals_.push_back(value);
+      // 12
+      rows_.push_back(2 * irow + 0);
+      cols_.push_back(2 * icol + 1);
+      vals_.push_back(-1*imag_value);
+      // 21
+      rows_.push_back(2 * irow + 1);
+      cols_.push_back(2 * icol + 0);
+      vals_.push_back(value);
+      // 22
+      rows_.push_back(2 * irow + 1);
+      cols_.push_back(2 * icol + 1);
+      vals_.push_back(imag_value);
+      }
     }
   }
 
@@ -1837,7 +1868,7 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
     MM_typecode matcode;
     int err;
     int msize, nsize;
-    double value;
+    double value, imag_value;
 
     if ((fh = fopen(mmfile.c_str(), "r")) == NULL) {
       throw std::runtime_error("Cannot open vector file: " + mmfile);
@@ -1889,15 +1920,39 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
    continue;
       }
       if (i >= iLower_ && i <= iUpper_) {
-   sscanf(line.c_str(), "%lf", &value);
-   vector_values_.push_back(value);
+         if(!complexNumbers_){
+         sscanf(line.c_str(), "%lf", &value);
+         }
+         else{
+         sscanf(line.c_str(), "%lf", "%lf", &value, &imag_value);
+         }
+         // Real vector
+         if(!complexNumbers_){
+         vector_values_.push_back(value);
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
-   vector_indices_.push_back((HYPRE_BigInt)i);
+         vector_indices_.push_back((HYPRE_BigInt)i);
 #else
-   vector_indices_.push_back(i);
+         vector_indices_.push_back(i);
 #endif
+         }
+	 else{
+         // Complex vector
+         // Real part
+         vector_values_.push_back(value);
+         // Imaginary part
+         vector_values_.push_back(imag_value);
+#if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
+         vector_indices_.push_back((HYPRE_BigInt)i);
+         vector_indices_.push_back((HYPRE_BigInt)(2*i));
+#else
+         vector_indices_.push_back(i);
+         vector_indices_.push_back(2*i);
+#endif
+	 }
       }
       i++;
+      // Increment once more for the imaginary part
+      if(complexNumbers_) i++;
     }
     
     int unmap_result = munmap(f, size);
