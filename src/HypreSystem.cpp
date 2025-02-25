@@ -1188,9 +1188,9 @@ void HypreSystem::build_ij_matrix(std::string matfile, int nfiles) {
 
   HYPRE_Int ilower, iupper, jlower, jupper;
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
-  HYPRE_BigInt irow, icol, ilo_check, iup_check;
+  HYPRE_BigInt irow, icol;
 #else
-  HYPRE_Int irow, icol, ilo_check, iup_check;
+  HYPRE_Int irow, icol;
 #endif
   double value;
 
@@ -1690,7 +1690,6 @@ void HypreSystem::determine_mm_system_sizes(std::string matfile) {
   err = mm_read_mtx_crd_size(fh, &msize, &nsize, &nnz);
   if (err != 0)
     throw std::runtime_error("Cannot read matrix sizes in file: " + matfile);
-
   if(!complexNumbers_) {
   totalRows_ = M_ = msize;
   N_ = nsize;
@@ -1924,14 +1923,19 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
       }
       if (i >= iLower_ && i <= iUpper_) {
          if(!complexNumbers_){
+         // Real vector
          sscanf(line.c_str(), "%lf", &value);
+         vector_values_.push_back(value);
          }
          else{
+         // Complex vector
          sscanf(line.c_str(), "%lf %lf", &value, &imag_value);
-         }
-         // Real vector
-         if(!complexNumbers_){
+         // Real part
          vector_values_.push_back(value);
+         // Imaginary part
+         vector_values_.push_back(imag_value);
+         }
+         if(!complexNumbers_){
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
          vector_indices_.push_back((HYPRE_BigInt)i);
 #else
@@ -1939,11 +1943,6 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
 #endif
          }
 	 else{
-         // Complex vector
-         // Real part
-         vector_values_.push_back(value);
-         // Imaginary part
-         vector_values_.push_back(imag_value);
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
          vector_indices_.push_back((HYPRE_BigInt)i);
          vector_indices_.push_back((HYPRE_BigInt)(i+1));
