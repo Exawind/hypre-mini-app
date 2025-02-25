@@ -1943,10 +1943,10 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
          vector_values_.push_back(imag_value);
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
          vector_indices_.push_back((HYPRE_BigInt)i);
-         vector_indices_.push_back((HYPRE_BigInt)(2*i));
+         vector_indices_.push_back((HYPRE_BigInt)(i+1));
 #else
          vector_indices_.push_back(i);
-         vector_indices_.push_back(2*i);
+         vector_indices_.push_back(i+1);
 #endif
 	 }
       }
