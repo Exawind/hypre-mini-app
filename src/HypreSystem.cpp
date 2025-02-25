@@ -44,7 +44,6 @@ throw std::runtime_error("Cannot use build_27pt_stencil() without Hypre HIP supp
     outputSystem_ = linsys["write_outputs"].as<bool>();
   if (linsys["write_solution"])
     outputSolution_ = linsys["write_solution"].as<bool>();
-    
 }
 
 void HypreSystem::setup_precon_and_solver() {
@@ -1886,8 +1885,11 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
     if (err != 0)
       throw std::runtime_error("Cannot read array sizes in file: " + mmfile);
 
-    if ((msize != M_))
+    if ((msize != M_) && (!complexNumbers_))
       throw std::runtime_error("Inconsistent sizes for Matrix and Vector");
+
+    if ((2*msize != M_) && (complexNumbers_))
+      throw std::runtime_error("Inconsistent sizes for Complex Matrix and Vector");
 
     /* Read in the file through memory mapping */
     fclose(fh);
@@ -1925,7 +1927,7 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
          sscanf(line.c_str(), "%lf", &value);
          }
          else{
-         sscanf(line.c_str(), "%lf", "%lf", &value, &imag_value);
+         sscanf(line.c_str(), "%lf %lf", &value, &imag_value);
          }
          // Real vector
          if(!complexNumbers_){
