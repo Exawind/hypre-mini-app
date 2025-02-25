@@ -44,8 +44,6 @@ throw std::runtime_error("Cannot use build_27pt_stencil() without Hypre HIP supp
     outputSystem_ = linsys["write_outputs"].as<bool>();
   if (linsys["write_solution"])
     outputSolution_ = linsys["write_solution"].as<bool>();
-  if(linsys["complex_numbers"])
-    complexNumbers_ = linsys["complex_numbers"].as<bool>();
     
 }
 
@@ -1645,6 +1643,9 @@ void HypreSystem::load_matrix_market() {
     if (count == numComps_)
       checkSolution_ = true;
   }
+
+  if(linsys["complex_numbers"])
+  complexNumbers_ = linsys["complex_numbers"].as<bool>();
 
   // Scan the matrix and determine the sizes
   determine_mm_system_sizes(matfile);
