@@ -1698,7 +1698,7 @@ void HypreSystem::determine_mm_system_sizes(std::string matfile) {
   else {
   totalRows_ = M_ = 2 * msize;
   N_ = 2 * nsize;
-  nnz_ = 2 * nnz;
+  nnz_ = 4 * nnz;
   }
 
   MPI_Barrier(comm_);
