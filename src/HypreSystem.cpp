@@ -1825,11 +1825,11 @@ void HypreSystem::build_mm_matrix(std::string matfile) {
       // 21
       rows_.push_back(2 * irow + 1);
       cols_.push_back(2 * icol + 0);
-      vals_.push_back(value);
+      vals_.push_back(imag_value);
       // 22
       rows_.push_back(2 * irow + 1);
       cols_.push_back(2 * icol + 1);
-      vals_.push_back(imag_value);
+      vals_.push_back(value);
       }
     }
   }
