@@ -1643,6 +1643,9 @@ void HypreSystem::load_matrix_market() {
       checkSolution_ = true;
   }
 
+  if(linsys["complex_numbers"])
+  complexNumbers_ = linsys["complex_numbers"].as<bool>();
+
   // Scan the matrix and determine the sizes
   determine_mm_system_sizes(matfile);
 
@@ -1687,10 +1690,16 @@ void HypreSystem::determine_mm_system_sizes(std::string matfile) {
   err = mm_read_mtx_crd_size(fh, &msize, &nsize, &nnz);
   if (err != 0)
     throw std::runtime_error("Cannot read matrix sizes in file: " + matfile);
-
+  if(!complexNumbers_) {
   totalRows_ = M_ = msize;
   N_ = nsize;
   nnz_ = nnz;
+  }
+  else {
+  totalRows_ = M_ = 2 * msize;
+  N_ = 2 * nsize;
+  nnz_ = 4 * nnz;
+  }
 
   MPI_Barrier(comm_);
   auto stop = std::chrono::system_clock::now();
@@ -1717,11 +1726,11 @@ void HypreSystem::build_mm_matrix(std::string matfile) {
   int err;
   int msize, nsize, nnz;
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
-  HYPRE_BigInt irow, icol;
+  HYPRE_BigInt irow, icol, iLo_check, iUp_check;
 #else
-  HYPRE_Int irow, icol;
+  HYPRE_Int irow, icol, iLo_check, iUp_check;
 #endif
-  double value;
+  double value, imag_value;
 
   if ((fh = fopen(matfile.c_str(), "rt")) == NULL) {
     throw std::runtime_error("Cannot open matrix file: " + matfile);
@@ -1769,18 +1778,59 @@ void HypreSystem::build_mm_matrix(std::string matfile) {
       continue;
     }
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
+    if(!complexNumbers_){
     sscanf(line.c_str(), "%lld %lld %lf", &irow, &icol, &value);
+    }
+    else{
+    sscanf(line.c_str(), "%lld %lld %lf %lf", &irow, &icol, &value, &imag_value);
+    }
 #else
+    if(!complexNumbers_){
     sscanf(line.c_str(), "%d %d %lf", &irow, &icol, &value);
+    }
+    else{
+    sscanf(line.c_str(), "%d %d %lf %lf", &irow, &icol, &value, &imag_value); 
+    }
 #endif
 
     irow--;
     icol--;
-    
-    if (irow >= iLower_ && irow <= iUpper_) {
+    iLo_check=iLower_;
+    iUp_check=iUpper_;
+    if(complexNumbers_){
+    iLo_check=iLower_/2;
+    iUp_check=(iUpper_-1)/2;
+    }
+    if (irow >= iLo_check && irow <= iUp_check) {
+      if(!complexNumbers_){
       rows_.push_back(irow);
       cols_.push_back(icol);
       vals_.push_back(value);
+      }
+      else{
+      // Converting a complex matrix to a real matrix
+      // while doubling the number of degrees
+      // of freedom
+      //            |a -b|
+      // |a+ i b| = |    |
+      //            |b  a|
+      // 11
+      rows_.push_back(2 * irow + 0);
+      cols_.push_back(2 * icol + 0);
+      vals_.push_back(value);
+      // 12
+      rows_.push_back(2 * irow + 0);
+      cols_.push_back(2 * icol + 1);
+      vals_.push_back(-1*imag_value);
+      // 21
+      rows_.push_back(2 * irow + 1);
+      cols_.push_back(2 * icol + 0);
+      vals_.push_back(imag_value);
+      // 22
+      rows_.push_back(2 * irow + 1);
+      cols_.push_back(2 * icol + 1);
+      vals_.push_back(value);
+      }
     }
   }
 
@@ -1816,7 +1866,7 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
     MM_typecode matcode;
     int err;
     int msize, nsize;
-    double value;
+    double value, imag_value;
 
     if ((fh = fopen(mmfile.c_str(), "r")) == NULL) {
       throw std::runtime_error("Cannot open vector file: " + mmfile);
@@ -1833,8 +1883,11 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
     if (err != 0)
       throw std::runtime_error("Cannot read array sizes in file: " + mmfile);
 
-    if ((msize != M_))
+    if ((msize != M_) && (!complexNumbers_))
       throw std::runtime_error("Inconsistent sizes for Matrix and Vector");
+
+    if ((2*msize != M_) && (complexNumbers_))
+      throw std::runtime_error("Inconsistent sizes for Complex Matrix and Vector");
 
     /* Read in the file through memory mapping */
     fclose(fh);
@@ -1868,15 +1921,35 @@ void HypreSystem::build_mm_vector(std::vector<std::string> &mmfiles,
    continue;
       }
       if (i >= iLower_ && i <= iUpper_) {
-   sscanf(line.c_str(), "%lf", &value);
-   vector_values_.push_back(value);
+         if(!complexNumbers_){
+         // Real vector
+         sscanf(line.c_str(), "%lf", &value);
+         vector_values_.push_back(value);
 #if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
-   vector_indices_.push_back((HYPRE_BigInt)i);
+         vector_indices_.push_back((HYPRE_BigInt)i);
 #else
-   vector_indices_.push_back(i);
+         vector_indices_.push_back(i);
 #endif
+         }
+         else{
+         // Complex vector
+         sscanf(line.c_str(), "%lf %lf", &value, &imag_value);
+         // Real part
+         vector_values_.push_back(value);
+         // Imaginary part
+         vector_values_.push_back(imag_value);
+#if defined(HYPRE_MIXEDINT) || defined(HYPRE_BIGINT)
+         vector_indices_.push_back((HYPRE_BigInt)i);
+         vector_indices_.push_back((HYPRE_BigInt)(i+1));
+#else
+         vector_indices_.push_back(i);
+         vector_indices_.push_back(i+1);
+#endif
+         }
       }
       i++;
+      // Increment once more for the imaginary part
+      if(complexNumbers_) i++;
     }
     
     int unmap_result = munmap(f, size);
